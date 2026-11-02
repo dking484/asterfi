@@ -115,7 +115,7 @@ UNIT
 fi
 command -v asterisk >/dev/null || die "Asterisk didn't install."
 systemctl enable asterisk >>"$LOG" 2>&1 || true
-note "$(asterisk -V)"
+[ "${have_major:-0}" -ge "$ASTERISK_MAJOR" ] 2>/dev/null || note "Installed $(asterisk -V)"
 
 # Where this Asterisk keeps its sounds (Debian/Ubuntu packages: /usr/share/asterisk; source: /var/lib/asterisk).
 DATADIR=$(sed -nE 's/^\s*astdatadir\s*=>?\s*([^ ;]+).*/\1/p' /etc/asterisk/asterisk.conf | head -1)

@@ -261,7 +261,7 @@ function informTls() {
   try {
     if (!existsSync(keyFile) || !existsSync(certFile)) {
       execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '3650',
-        '-keyout', keyFile, '-out', certFile, '-subj', '/CN=UniFi']);
+        '-keyout', keyFile, '-out', certFile, '-subj', '/CN=UniFi'], { stdio: 'ignore' });
     }
     return { key: readFileSync(keyFile), cert: readFileSync(certFile) };
   } catch (e) {
