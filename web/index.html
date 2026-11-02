@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <script>
+      // Apply the saved theme before the app loads, so the page never flashes the other theme.
+      try { document.documentElement.dataset.theme = localStorage.getItem('asterfi-theme') || 'dark'; } catch { document.documentElement.dataset.theme = 'dark'; }
+    </script>
+    <title>AsterFi</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

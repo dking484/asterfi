@@ -1,0 +1,17 @@
+[Unit]
+Description=AsterFi PBX management service
+After=network-online.target postgresql.service asterisk.service
+Wants=postgresql.service asterisk.service
+
+[Service]
+Type=simple
+User=asterisk
+Group=asterisk
+WorkingDirectory=/opt/asterfi/server
+EnvironmentFile=/etc/asterfi/asterfi.env
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,6 @@
+[Unit]
+Description=AsterFi nightly backup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/asterfi/bin/backup.sh
