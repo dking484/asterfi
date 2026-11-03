@@ -96,3 +96,7 @@ Services: `asterfi`, `asterisk`, `postgresql`, `nginx`, `asterfi-backup.timer`. 
 - `web/`: React + Vite console. Use `npm run dev` for development and `npm run build` to produce `web/dist`.
 - `deploy/deploy.sh`: pushes `server/src` and a built `web/dist` to an existing server over SSH. It reads the server address and password from `deploy/local.env`; copy `deploy/local.env.example` to create it.
 - `docs/integration-guide.md`: REST API and webhooks.
+
+## License
+
+AsterFi is free software, released under the [GNU General Public License v3.0](LICENSE). You may use, study, share and modify it. If you distribute AsterFi or a modified version, you must make its source code available under the same license.
