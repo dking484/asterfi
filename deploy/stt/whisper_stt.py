@@ -1,8 +1,10 @@
 #!/opt/asterfi/stt/venv/bin/python
 """Transcribe a voicemail with faster-whisper (CPU, int8). Called by the AsterFi service.
 
-usage: whisper_stt.py [--model base.en] FILE.wav     prints the transcript on stdout
-       whisper_stt.py --download MODEL                fetches a model into the models folder
+usage: whisper_stt.py [--model base.en] [--revision HASH] FILE.wav   prints the transcript on stdout
+       whisper_stt.py --download MODEL [--revision HASH]             fetches a model into the models folder
+
+--revision pins the model to a Hugging Face commit (AsterFi's compatibility.json lists the tested ones).
 """
 import argparse, os, sys
 
@@ -12,13 +14,14 @@ ap = argparse.ArgumentParser()
 ap.add_argument('file', nargs='?')
 ap.add_argument('--model', default='base.en')
 ap.add_argument('--download', metavar='MODEL')
+ap.add_argument('--revision', default=None)
 args = ap.parse_args()
 
 import numpy as np  # noqa: E402
 from faster_whisper import WhisperModel  # noqa: E402  (slow import; keep --help fast)
 
 if args.download:
-    WhisperModel(args.download, device='cpu', compute_type='int8', download_root=MODELS)
+    WhisperModel(args.download, device='cpu', compute_type='int8', download_root=MODELS, revision=args.revision)
     sys.exit(0)
 if not args.file:
     sys.exit('a WAV file is required')
@@ -44,7 +47,7 @@ def load_audio(path):
 
 # Phone audio is 8 kHz, upsampled to the 16 kHz Whisper expects. The VAD filter skips silence and hold-music tails.
 # Models are downloaded at install time (setup.sh); the service never fetches anything.
-model = WhisperModel(args.model, device='cpu', compute_type='int8', download_root=MODELS, local_files_only=True,
+model = WhisperModel(args.model, device='cpu', compute_type='int8', download_root=MODELS, local_files_only=True, revision=args.revision,
                      cpu_threads=max(1, (os.cpu_count() or 2) - 1))
 segments, _ = model.transcribe(load_audio(args.file), language='en' if args.model.endswith('.en') else None,
                                beam_size=5, vad_filter=True, condition_on_previous_text=False)

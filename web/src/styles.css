@@ -382,3 +382,31 @@ body { font-size: 14.5px; }
 .stat-link:hover { border-color: var(--accent); }
 .my-status { display: inline-flex; align-items: center; gap: 10px; font-size: 24px; }
 .my-status .dot { width: 12px; height: 12px; }
+
+/* Settings > System */
+.update-ok { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 14px; }
+.update-ok svg { color: var(--green); flex-shrink: 0; margin-top: 1px; }
+.code-box { background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; margin: 0 0 14px; white-space: pre; overflow-x: auto; }
+.kv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px 18px; }
+.kv > div:last-child { margin-top: 2px; }
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.meter { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.meter-l { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.meter-v { font-size: 18px; font-weight: 600; margin: 4px 0 8px; font-variant-numeric: tabular-nums; }
+.meter-track { height: 6px; border-radius: 3px; background: var(--panel-2); border: 1px solid var(--border); overflow: hidden; margin-bottom: 6px; }
+.meter-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+.meter-fill.amber { background: var(--amber); }
+.meter-fill.red { background: var(--red); }
+.hchart { position: relative; min-width: 0; }
+.hchart-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+.hchart svg { display: block; overflow: visible; }
+.hchart-empty { height: 130px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 8px; }
+.hchart-grid { stroke: var(--border); stroke-width: 1; }
+.hchart-axis { fill: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.hchart-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.hchart-area { fill: var(--accent); opacity: .1; }
+.hchart-cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.hchart-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+.hchart-tip { position: absolute; top: 22px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; display: flex; gap: 8px; white-space: nowrap; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, .12); }
+.t.versions .group-row td { background: var(--panel-2); font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding-top: 8px; padding-bottom: 8px; }
+.t.versions td.mono { white-space: nowrap; }

@@ -1,0 +1,51 @@
+{
+  "about": "Versions this AsterFi release supports. install.sh and Settings > System both read this file; widen a range only after testing AsterFi on it. Python speech packages are pinned in deploy/tts and deploy/stt requirements.txt.",
+  "components": {
+    "asterisk": {
+      "name": "Asterisk",
+      "min": "22",
+      "max": "22",
+      "tested": "22.5.2"
+    },
+    "postgresql": {
+      "name": "PostgreSQL",
+      "min": "14",
+      "max": "18",
+      "tested": "18.6"
+    },
+    "node": {
+      "name": "Node.js",
+      "min": "20",
+      "max": "24",
+      "tested": "22.22.1"
+    },
+    "python": {
+      "name": "Python",
+      "min": "3.12",
+      "max": "3.14",
+      "tested": "3.14.4"
+    },
+    "nginx": {
+      "name": "nginx",
+      "min": "1.18",
+      "tested": "1.28.3"
+    },
+    "ffmpeg": {
+      "name": "FFmpeg",
+      "min": "5",
+      "tested": "8.0.1"
+    }
+  },
+  "asteriskSource": {
+    "version": "22.5.2",
+    "sha256": "5061c852fd850b17e6be9d866c8e73298471883fc5e3ccd5a24b3e1364e24218"
+  },
+  "whisperModels": {
+    "base.en": "3d3d5dee26484f91867d81cb899cfcf72b96be6c",
+    "small.en": "d1d751a5f8271d482d14ca55d9e2deeebbae577f"
+  },
+  "kokoroModels": {
+    "kokoro-v1.0.int8.onnx": "6e742170d309016e5891a994e1ce1559c702a2ccd0075e67ef7157974f6406cb",
+    "voices-v1.0.bin": "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
+  }
+}

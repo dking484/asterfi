@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS = {
   },
   tts: { engine: 'kokoro', voice: 'af_heart', speed: 1 },
   stt: { enabled: true, model: 'base.en' },
+  updates: { auto: true },
   smtp: {
     host: '', port: 587, secure: false, username: '', password: '',
     fromAddress: '', fromName: 'AsterFi Phone System',

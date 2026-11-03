@@ -10,6 +10,9 @@ import { fieldDefs, saveFieldDefs, mergeCustom, visibleCustom } from '../customf
 import { activeCalls, activeCallsFor, invalidateUserCache } from '../calltracker.js';
 import { listMessages, findMessage, transcode, deleteMessage, markHeard, transcribeVoicemail } from '../voicemail.js';
 import { sttSettings, STT_MODELS } from '../stt.js';
+import { host as sysHost, performance as sysPerformance, storage as sysStorage, versions as sysVersions } from '../system.js';
+import { updateStatus } from '../updates.js';
+import { annotate as annotateCompat } from '../compat.js';
 import { sendTestEmail, sendLoginDetailsEmail } from '../notify/email.js';
 import { sendTest, redeliver } from '../notify/webhooks.js';
 import { bus, EVENT_TYPES } from '../events.js';
@@ -1022,6 +1025,35 @@ export default async function adminRoutes(app, { ami }) {
     uptime: (await ami.command('core show uptime seconds').catch(() => '')).trim(),
     amiConnected: ami.connected,
   }));
+  // Settings > System: health and performance, storage, component versions and the update check.
+  app.get('/api/system/overview', async () => {
+    const [h, perf, store, uptime, contacts, trunks, calls] = await Promise.all([
+      sysHost(), sysPerformance(), sysStorage(q, RECORDINGS),
+      ami.command('core show uptime seconds').catch(() => ''),
+      phoneContacts().catch(() => []), trunkStatus().catch(() => []),
+      one(`SELECT count(*)::int today, (SELECT count(*) FROM calls)::bigint total FROM calls WHERE started_at >= date_trunc('day', now())`),
+    ]);
+    return {
+      host: { ...h, asteriskUptime: Number((/System uptime: (\d+)/.exec(uptime) || [])[1]) || null, amiConnected: ami.connected },
+      ...perf, storage: store,
+      telephony: {
+        activeCalls: activeCalls().length, callsToday: calls.today, callsTotal: Number(calls.total),
+        phonesOnline: contacts.filter((c) => c.online).length, phonesTotal: contacts.length,
+        trunksRegistered: trunks.filter((t) => t.status === 'Registered').length, trunksTotal: trunks.length,
+      },
+    };
+  });
+  app.get('/api/system/versions', async (req) => {
+    const v = await sysVersions(ami, q, { refresh: req.query.refresh === '1' });
+    return { ...v, issues: annotateCompat(v) };
+  });
+  // Components outside the versions this release supports, for the dashboard warning and the System tab badge.
+  app.get('/api/system/compat', async () => ({ issues: annotateCompat(await sysVersions(ami, q)) }));
+  app.get('/api/system/update', async (req) => updateStatus({ force: req.query.check === '1' }));
+  app.put('/api/settings/updates', async (req) => {
+    await setSetting('updates', { ...(await getSetting('updates')), auto: req.body?.auto !== false });
+    return updateStatus();
+  });
   // Nightly backups written by asterfi-backup.timer.
   const BACKUP_DIR = '/var/backups/asterfi';
   app.get('/api/backups', async () => {

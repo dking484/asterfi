@@ -16,6 +16,8 @@ import { promptFile } from './prompts.js';
 import { initUnifi } from './unifi/listener.js';
 import { onRegistryEvent } from './trunkstatus.js';
 import adminRoutes from './routes/admin.js';
+import { versions } from './system.js';
+import { annotate as annotateCompat } from './compat.js';
 import v1Routes from './routes/v1.js';
 import phonebookRoutes from './routes/phonebook.js';
 
@@ -45,6 +47,10 @@ ami.on('connected', () => {
   if (applied) return;
   applied = true;
   applyNow({ transports: true }).then(() => console.log('Asterisk config applied')).catch((e) => console.error('apply failed', e));
+  // Say so in the log if anything runs outside the versions this AsterFi release supports.
+  versions(ami, q).then((v) => {
+    for (const i of annotateCompat(v)) console.warn(`Untested version: ${i.name} ${i.version} (this AsterFi release supports ${i.supported})`);
+  }).catch((e) => console.error('version check', e.message));
 });
 
 initVoicemail(ami);

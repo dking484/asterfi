@@ -6,7 +6,7 @@ A phone system built on Asterisk 22, with a web console in the style of UniFi Ta
 
 | | Minimum | Recommended |
 |---|---|---|
-| Operating system | A fresh **Debian 12+** or **Ubuntu 22.04+** install | Ubuntu 26.04 LTS, which ships Asterisk 22, so nothing has to be compiled |
+| Operating system | A fresh **Debian 12+** or **Ubuntu 22.04+** install. Kokoro voices and voicemail transcription need **Debian 13+** or **Ubuntu 24.04+** (Python 3.12 or newer); on older releases they're skipped. | Ubuntu 26.04 LTS, which ships Asterisk 22, so nothing has to be compiled |
 | CPU | 1 core, x86-64 or arm64 | 2 or more cores |
 | Memory | 2 GB | 4 GB |
 | Disk | 10 GB | 20 GB or more, for voicemail, call recordings and backups |
@@ -65,6 +65,19 @@ sudo ./install.sh
 ```
 
 Re-running the installer updates AsterFi in place. It keeps the database, settings, prompts, voicemail and certificate.
+
+### Supported versions
+
+Each AsterFi release states the versions it's tested with, so an upgrade elsewhere on the server can't quietly break it:
+
+- **`server/src/compatibility.json`** lists the supported range for Asterisk, PostgreSQL, Node.js, Python, nginx and FFmpeg. It also pins the Asterisk source release (with its SHA-256), the Whisper model revisions and the Kokoro model checksums.
+- **`deploy/tts/requirements.txt`** and **`deploy/stt/requirements.txt`** pin every Python package the speech add-ons use. The JavaScript libraries are pinned by the two `package-lock.json` files.
+- **Asterisk is held on its supported major version.** The installer writes `/etc/apt/preferences.d/asterfi-asterisk`, so security updates within Asterisk 22 still install, but neither `apt upgrade` nor a distribution upgrade can move it to a new major version. A newer AsterFi release that supports a newer Asterisk updates the file.
+- **Settings > System** marks each component as supported or untested. If anything runs outside its range, it shows a warning there and on the admin dashboard, and the service logs it at startup. AsterFi keeps running either way.
+
+Widening a range is a deliberate change: test AsterFi on the new version, then update `compatibility.json` (or the requirements files) in a release.
+
+**Settings > System** shows when a new release is out. It checks GitHub's API (`api.github.com`) every 6 hours and can be switched off there. The same tab shows the server's health, performance, storage and the version of every component.
 
 ### Ports
 
