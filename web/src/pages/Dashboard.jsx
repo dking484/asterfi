@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PhoneIncoming, PhoneOutgoing, PhoneMissed, Voicemail, Users, Phone, Server, ArrowRightLeft, CircleUser, Clock, Monitor } from 'lucide-react';
+import { PhoneIncoming, PhoneOutgoing, PhoneMissed, Voicemail, Users, Phone, Server, ArrowRightLeft, CircleUser, Clock, Monitor, AlertTriangle } from 'lucide-react';
 import { api, formatNumber, fmtDuration, fmtWhen } from '../api.js';
-import { useLiveEvents, Empty, Seg } from '../components/ui.jsx';
+import { useLiveEvents, Empty, Seg, useData } from '../components/ui.jsx';
 import { useDirectory } from '../components/Destination.jsx';
 import { CallIcon, partyLabel, CallTable } from './Calls.jsx';
 import { usePresence, presenceInfo } from '../components/Presence.jsx';
@@ -30,11 +30,21 @@ function CompanyDashboard({ me }) {
   useLiveEvents(load, ['call.', 'phone.', 'voicemail.']);
   const dir = useDirectory();
   const presence = usePresence();
+  const { data: compat } = useData('/api/system/compat');
   if (!d) return null;
   const mine = presenceInfo(presence[me?.extension]);
+  const untested = compat?.issues || [];
 
   return (
     <>
+      {untested.length > 0 && <div className="alert warn" style={{ alignItems: 'center' }}>
+        <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+        <span style={{ flex: 1 }}>
+          {untested.map((i) => `${i.name} ${i.version}`).join(', ')} {untested.length === 1 ? "isn't a version" : "aren't versions"} this AsterFi release is tested with
+          ({untested.map((i) => `${i.name} ${i.supported}`).join(', ')}). Something may not work; check before relying on it.
+        </span>
+        <Link className="btn sm" to="/settings/system">Details</Link>
+      </div>}
       <div className="stats">
         <Stat icon={PhoneIncoming} label="Calls today" value={d.today.total} />
         <Stat icon={Phone} label="Answered" value={d.today.answered} />

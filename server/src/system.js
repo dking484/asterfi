@@ -142,31 +142,32 @@ export async function versions(ami, q, { refresh = false } = {}) {
   ]);
   const [fastify, cookie, multipart, staticV, pgLib, nodemailer, ws, ssh2] = libs;
   const h = await host();
-  const row = (name, version, purpose) => ({ name, version: version || null, purpose });
+  // `key` ties a row to its supported range in compat.js (a compatibility.json component, or pip:<package>).
+  const row = (name, version, purpose, key = null) => ({ name, version: version || null, purpose, key });
   versionCache = {
     checkedAt: new Date(),
     groups: [
       { name: 'Phone system', items: [
         row('AsterFi', await asterfiVersion(), 'This web console and management service'),
-        row('Asterisk', match(asterisk, /^Asterisk (\d[\w.]*)/), 'Calls, voicemail, queues and call flows'),
-        row('PostgreSQL', pg && pg.split(' ')[0], 'Database for users, calls and settings'),
-        row('Node.js', process.versions.node, 'Runs the AsterFi service'),
-        row('nginx', match(nginx, /nginx\/([\d.]+)/), 'Web server and HTTPS'),
+        row('Asterisk', match(asterisk, /^Asterisk (\d[\w.]*)/), 'Calls, voicemail, queues and call flows', 'asterisk'),
+        row('PostgreSQL', pg && pg.split(' ')[0], 'Database for users, calls and settings', 'postgresql'),
+        row('Node.js', process.versions.node, 'Runs the AsterFi service', 'node'),
+        row('nginx', match(nginx, /nginx\/([\d.]+)/), 'Web server and HTTPS', 'nginx'),
         row('Operating system', h.os, 'Runs everything above'),
         row('Linux kernel', h.kernel, `${h.arch} processor architecture`),
       ] },
       { name: 'Audio and speech', items: [
-        row('FFmpeg', match(ffmpeg, /ffmpeg version (\S+?)(?:-\d+ubuntu\S*)?\s/) || match(ffmpeg, /ffmpeg version (\S+)/), 'Converts uploads and voicemail audio'),
+        row('FFmpeg', match(ffmpeg, /ffmpeg version (\S+?)(?:-\d+ubuntu\S*)?\s/) || match(ffmpeg, /ffmpeg version (\S+)/), 'Converts uploads and voicemail audio', 'ffmpeg'),
         row('SoX', match(sox, /v([\d.]+)/), 'Audio processing'),
         row('LAME', match(lame, /version ([\d.]+)/), 'MP3 encoding for voicemail emails'),
         row('Flite', match(flite, /flite-([\d.]+)/), 'Basic text-to-speech voice'),
-        row('Python', match(python, /Python ([\d.]+)/), 'Runs the speech models'),
-        row('Kokoro (kokoro-onnx)', tts['kokoro-onnx'], `Natural text-to-speech voices${kokoroModels.length ? ` · model ${kokoroModels.join(', ')}` : ''}`),
-        row('ONNX Runtime', tts.onnxruntime, 'Runs the Kokoro model'),
-        row('faster-whisper', stt['faster-whisper'], `Voicemail transcription${whisperModels.length ? ` · models ${whisperModels.join(', ')}` : ''}`),
-        row('CTranslate2', stt.ctranslate2, 'Runs the Whisper model'),
-        row('PyAV', stt.av, 'Audio decoding library used by faster-whisper'),
-        row('NumPy', stt.numpy, 'Audio samples for transcription'),
+        row('Python', match(python, /Python ([\d.]+)/), 'Runs the speech models', 'python'),
+        row('Kokoro (kokoro-onnx)', tts['kokoro-onnx'], `Natural text-to-speech voices${kokoroModels.length ? ` · model ${kokoroModels.join(', ')}` : ''}`, 'pip:kokoro-onnx'),
+        row('ONNX Runtime', tts.onnxruntime || stt.onnxruntime, 'Runs the Kokoro model', 'pip:onnxruntime'),
+        row('faster-whisper', stt['faster-whisper'], `Voicemail transcription${whisperModels.length ? ` · models ${whisperModels.join(', ')}` : ''}`, 'pip:faster-whisper'),
+        row('CTranslate2', stt.ctranslate2, 'Runs the Whisper model', 'pip:ctranslate2'),
+        row('PyAV', stt.av, 'Audio decoding library used by faster-whisper', 'pip:av'),
+        row('NumPy', stt.numpy || tts.numpy, 'Audio samples for the speech models', 'pip:numpy'),
       ] },
       { name: 'Server libraries', items: [
         row('Fastify', fastify, 'Web server framework for the API'),

@@ -17,11 +17,12 @@ export default function Settings() {
   const { tab = 'general' } = useParams();
   const nav = useNavigate();
   const { data: update } = useData('/api/system/update');
+  const { data: compat } = useData('/api/system/compat');
   if (MOVED.includes(tab)) return <Navigate to="/trunks" replace />;
   if (PROMPTS.includes(tab)) return <Navigate to="/flows" replace />;
   return (
     <>
-      <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => nav(k === 'general' ? '/settings' : `/settings/${k}`)}>{l}{k === 'system' && update?.available && <span className="badge blue" style={{ marginLeft: 6 }} title="A new AsterFi release is available">Update</span>}</button>)}</div>
+      <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => nav(k === 'general' ? '/settings' : `/settings/${k}`)}>{l}{k === 'system' && update?.available && <span className="badge blue" style={{ marginLeft: 6 }} title="A new AsterFi release is available">Update</span>}{k === 'system' && compat?.issues?.length > 0 && <span className="badge amber" style={{ marginLeft: 6 }} title="Some software is outside the versions this AsterFi release is tested with">Check versions</span>}</button>)}</div>
       {tab === 'general' && <General />}
       {tab === 'email' && <Email />}
       {tab === 'fields' && <ContactFields />}

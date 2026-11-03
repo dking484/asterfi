@@ -12,6 +12,7 @@ import { listMessages, findMessage, transcode, deleteMessage, markHeard, transcr
 import { sttSettings, STT_MODELS } from '../stt.js';
 import { host as sysHost, performance as sysPerformance, storage as sysStorage, versions as sysVersions } from '../system.js';
 import { updateStatus } from '../updates.js';
+import { annotate as annotateCompat } from '../compat.js';
 import { sendTestEmail, sendLoginDetailsEmail } from '../notify/email.js';
 import { sendTest, redeliver } from '../notify/webhooks.js';
 import { bus, EVENT_TYPES } from '../events.js';
@@ -1042,7 +1043,12 @@ export default async function adminRoutes(app, { ami }) {
       },
     };
   });
-  app.get('/api/system/versions', async (req) => sysVersions(ami, q, { refresh: req.query.refresh === '1' }));
+  app.get('/api/system/versions', async (req) => {
+    const v = await sysVersions(ami, q, { refresh: req.query.refresh === '1' });
+    return { ...v, issues: annotateCompat(v) };
+  });
+  // Components outside the versions this release supports, for the dashboard warning and the System tab badge.
+  app.get('/api/system/compat', async () => ({ issues: annotateCompat(await sysVersions(ami, q)) }));
   app.get('/api/system/update', async (req) => updateStatus({ force: req.query.check === '1' }));
   app.put('/api/settings/updates', async (req) => {
     await setSetting('updates', { ...(await getSetting('updates')), auto: req.body?.auto !== false });

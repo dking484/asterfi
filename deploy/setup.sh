@@ -74,35 +74,54 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t 2>&1 | tail -1
 systemctl reload nginx
 
-# Kokoro text-to-speech (CPU, ONNX int8 model)
-# Optional (SKIP_KOKORO=1 skips it); without it, typed prompts use the Flite voice.
+# Speech add-ons: Kokoro text-to-speech and faster-whisper voicemail transcription. Every Python package is
+# pinned in tts/ and stt/requirements.txt and every model by checksum or revision in compatibility.json, so each
+# install of an AsterFi release gets exactly what it was tested with. The pins need Python 3.12-3.14; on an older
+# Python both are skipped (typed prompts use Flite and voicemails aren't transcribed).
+COMPAT=../server/src/compatibility.json
+compat() { python3 -c 'import json, sys; v = json.load(open(sys.argv[1]))
+for k in sys.argv[2:]: v = v[k]
+print(v)' "$COMPAT" "$@"; }
+PY_MIN=$(compat components python min); PY_MAX=$(compat components python max)
+PY_OK=$(python3 -c "import sys; v = sys.version_info[:2]; lo = tuple(map(int, '$PY_MIN'.split('.'))); hi = tuple(map(int, '$PY_MAX'.split('.'))); print(int(lo <= v <= hi))")
+if [ "$PY_OK" != 1 ] && { [ "${SKIP_KOKORO:-0}" != 1 ] || [ "${SKIP_STT:-0}" != 1 ]; }; then
+  echo "WARNING: Python $(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])') is outside $PY_MIN-$PY_MAX, which the speech add-ons are tested with."
+  echo "         Skipping Kokoro voices (typed prompts use Flite) and voicemail transcription."
+  SKIP_KOKORO=1; SKIP_STT=1
+fi
+# Creates the venv if needed and installs the pinned packages (a no-op when they already match).
+pip_pinned() { [ -x "/opt/asterfi/$1/venv/bin/python" ] || python3 -m venv "/opt/asterfi/$1/venv"
+  "/opt/asterfi/$1/venv/bin/pip" install -q --disable-pip-version-check -r "$1/requirements.txt"
+  install -m 644 "$1/requirements.txt" "/opt/asterfi/$1/requirements.txt"; }
+
+# Kokoro text-to-speech (CPU, ONNX int8 model). SKIP_KOKORO=1 skips it. A failed update keeps the working
+# install; only a venv created by this run is removed.
 if [ "${SKIP_KOKORO:-0}" != 1 ]; then
+  [ -x /opt/asterfi/tts/venv/bin/python ] && TTS_HAD=1 || TTS_HAD=0
   ( set -e
-    if [ ! -x /opt/asterfi/tts/venv/bin/python ]; then
-      mkdir -p /opt/asterfi/tts/models
-      python3 -m venv /opt/asterfi/tts/venv
-      /opt/asterfi/tts/venv/bin/pip install -q --disable-pip-version-check kokoro-onnx soundfile
-    fi
+    mkdir -p /opt/asterfi/tts/models
+    pip_pinned tts
     K=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
-    [ -f /opt/asterfi/tts/models/kokoro-v1.0.int8.onnx ] || curl -fsSL -o /opt/asterfi/tts/models/kokoro-v1.0.int8.onnx $K/kokoro-v1.0.int8.onnx
-    [ -f /opt/asterfi/tts/models/voices-v1.0.bin ] || curl -fsSL -o /opt/asterfi/tts/models/voices-v1.0.bin $K/voices-v1.0.bin
+    for f in kokoro-v1.0.int8.onnx voices-v1.0.bin; do
+      [ -f "/opt/asterfi/tts/models/$f" ] || curl -fsSL -o "/opt/asterfi/tts/models/$f" "$K/$f"
+      echo "$(compat kokoroModels "$f")  /opt/asterfi/tts/models/$f" | sha256sum -c --quiet - || { rm -f "/opt/asterfi/tts/models/$f"; exit 1; }
+    done
     install -m 755 tts/kokoro_tts.py /opt/asterfi/tts/kokoro_tts.py
-  ) || { echo "WARNING: Kokoro text-to-speech didn't install; typed prompts will use Flite."; rm -rf /opt/asterfi/tts/venv; }
+  ) || { echo "WARNING: Kokoro text-to-speech didn't install; typed prompts will use Flite."; [ "$TTS_HAD" = 1 ] || rm -rf /opt/asterfi/tts/venv; }
 fi
 
-# Voicemail transcription (faster-whisper on the CPU). Optional (SKIP_STT=1 skips it).
-# Downloads both models Settings offers: base.en (~150 MB, fast) and small.en (~480 MB, more accurate).
+# Voicemail transcription (faster-whisper on the CPU). SKIP_STT=1 skips it.
+# Downloads both models Settings offers, at the revisions in compatibility.json: base.en (~150 MB, fast) and
+# small.en (~480 MB, more accurate).
 if [ "${SKIP_STT:-0}" != 1 ]; then
+  [ -x /opt/asterfi/stt/venv/bin/python ] && STT_HAD=1 || STT_HAD=0
   ( set -e
-    if [ ! -x /opt/asterfi/stt/venv/bin/python ]; then
-      mkdir -p /opt/asterfi/stt/models
-      python3 -m venv /opt/asterfi/stt/venv
-      /opt/asterfi/stt/venv/bin/pip install -q --disable-pip-version-check faster-whisper
-    fi
+    mkdir -p /opt/asterfi/stt/models
+    pip_pinned stt
     install -m 755 stt/whisper_stt.py /opt/asterfi/stt/whisper_stt.py
-    for m in base.en small.en; do /opt/asterfi/stt/whisper_stt.py --download $m; done
-    chmod -R a+rX /opt/asterfi/stt/models  # some cache files are written 0600; the service runs as asterisk
-  ) ||{ echo "WARNING: voicemail transcription didn't install; voicemails won't be transcribed."; rm -rf /opt/asterfi/stt/venv; }
+    for m in base.en small.en; do /opt/asterfi/stt/whisper_stt.py --download $m --revision "$(compat whisperModels $m)"; done
+    chmod -R a+rX /opt/asterfi/stt  # some cache files are written 0600; the service runs as asterisk
+  ) || { echo "WARNING: voicemail transcription didn't install; voicemails won't be transcribed."; [ "$STT_HAD" = 1 ] || rm -rf /opt/asterfi/stt/venv; }
 fi
 
 cp asterfi.service /etc/systemd/system/asterfi.service

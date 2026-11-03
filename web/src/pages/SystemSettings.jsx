@@ -238,6 +238,13 @@ function Storage({ d }) {
 }
 
 // ---------------------------------------------------------------- versions
+// Status always carries a word as well as a colour, so it never relies on colour alone.
+function Supported({ c }) {
+  if (!c) return <span className="muted small">—</span>;
+  if (c.status === 'ok') return <span className="badge green" title="A version this AsterFi release supports"><CheckCircle2 size={12} />{c.supported}</span>;
+  if (c.status === 'untested') return <span className="badge amber" title="Outside the versions this AsterFi release is tested with"><AlertTriangle size={12} />Untested · needs {c.supported}</span>;
+  return <span className="muted small">{c.supported}</span>;
+}
 const WEB_ROWS = [
   ['React', 'react', 'User interface library'],
   ['React Router', 'react-router-dom', 'Page navigation'],
@@ -251,25 +258,36 @@ function Versions() {
   const [busy, setBusy] = useState(false);
   const refresh = async () => { setBusy(true); try { setData(await api.get('/api/system/versions?refresh=1')); } finally { setBusy(false); } };
   if (!data) return null;
-  const groups = [...data.groups, { name: 'Web console libraries', items: WEB_ROWS.map(([name, pkg, purpose]) => ({ name, version: WEB_VERSIONS[pkg] || null, purpose })) }];
+  const groups = [...data.groups, { name: 'Web console libraries', items: WEB_ROWS.map(([name, pkg, purpose]) => ({ name, version: WEB_VERSIONS[pkg] || null, purpose, compat: { status: 'ok', supported: 'pinned' } })) }];
+  const issues = data.issues || [];
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <div className="card-head"><h2>Software versions</h2><div className="spacer" />
         <span className="muted small" style={{ marginRight: 10 }}>Read {fmtWhen(data.checkedAt)}</span>
         <button className="btn sm" onClick={refresh} disabled={busy}><RefreshCw size={13} />{busy ? 'Reading…' : 'Refresh'}</button>
       </div>
+      {issues.length > 0 ? (
+        <div className="card-body" style={{ paddingBottom: 0 }}><div className="alert warn" style={{ marginBottom: 0 }}><AlertTriangle size={15} style={{ flexShrink: 0 }} />
+          <span>{issues.length === 1 ? 'One component is' : `${issues.length} components are`} outside the versions this AsterFi release is tested with. AsterFi keeps running, but something may not work. Usually this means the operating system upgraded it; the next AsterFi release that supports it will clear this.</span>
+        </div></div>
+      ) : <div className="card-body muted small" style={{ paddingBottom: 0 }}>Everything below is a version this AsterFi release supports.</div>}
       <div className="table-wrap"><table className="t versions">
-        <thead><tr><th>Component</th><th>Version</th><th>Used for</th></tr></thead>
+        <thead><tr><th>Component</th><th>Version</th><th>Supported</th><th>Used for</th></tr></thead>
         {groups.map((g) => (
           <tbody key={g.name}>
-            <tr className="group-row"><td colSpan={3}>{g.name}</td></tr>
+            <tr className="group-row"><td colSpan={4}>{g.name}</td></tr>
             {g.items.map((it) => (
-              <tr key={it.name}><td>{it.name}</td><td className="mono">{it.version || <span className="muted">{it.version === null && g.name !== 'Phone system' ? 'not installed' : '—'}</span>}</td><td className="muted small">{it.purpose}</td></tr>
+              <tr key={it.name}>
+                <td>{it.name}</td>
+                <td className="mono">{it.version || <span className="muted">{it.version === null && g.name !== 'Phone system' ? 'not installed' : '—'}</span>}</td>
+                <td><Supported c={it.compat} /></td>
+                <td className="muted small">{it.purpose}</td>
+              </tr>
             ))}
           </tbody>
         ))}
       </table></div>
-      <div className="card-body muted small" style={{ borderTop: '1px solid var(--border)' }}>Operating-system packages (Asterisk, PostgreSQL, nginx and the audio tools) update with the system's package manager, e.g. <span className="mono">sudo apt upgrade</span>. AsterFi and its libraries update with the installer.</div>
+      <div className="card-body muted small" style={{ borderTop: '1px solid var(--border)' }}>Each AsterFi release pins the speech packages and models it's tested with and lists the supported range for system software; the installer installs exactly those. Operating-system packages (PostgreSQL, nginx and the audio tools) still get security updates from the system's package manager. Asterisk is held on its supported major version, so updates within it install but a newer major version doesn't.</div>
     </div>
   );
 }

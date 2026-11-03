@@ -18,8 +18,7 @@ set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")" && pwd)
 LOG=/var/log/asterfi-install.log
-ASTERISK_MAJOR=22
-NODE_MAJOR=22
+NODE_MAJOR=22   # the NodeSource line used when the distribution's Node.js is outside the supported range
 
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
@@ -46,6 +45,14 @@ apt_install ca-certificates curl wget gnupg openssl sudo git rsync procps iprout
   postgresql nginx ffmpeg sox lame flite python3 python3-venv python3-pip
 note "PostgreSQL, nginx, ffmpeg, sox, lame, flite, Python"
 
+# Versions this AsterFi release supports and pins (also read by Settings > System).
+compat() { python3 -c 'import json, sys; v = json.load(open(sys.argv[1]))
+for k in sys.argv[2:]: v = v[k]
+print(v)' "$REPO/server/src/compatibility.json" "$@"; }
+ASTERISK_MAJOR=$(compat components asterisk max)
+ASTERISK_SRC=$(compat asteriskSource version)
+NODE_MIN=$(compat components node min); NODE_MAX=$(compat components node max)
+
 # --- Asterisk --------------------------------------------------------------------------------------
 step "Installing Asterisk $ASTERISK_MAJOR"
 pkg_major=$(apt-cache policy asterisk 2>/dev/null | awk '/Candidate:/ {print $2}' | sed -E 's/^[0-9]+://; s/[^0-9].*//')
@@ -53,16 +60,17 @@ have_major=$(command -v asterisk >/dev/null && asterisk -V | sed -E 's/^Asterisk
 
 if [ "${have_major:-0}" -ge "$ASTERISK_MAJOR" ] 2>/dev/null; then
   note "Asterisk $(asterisk -V | awk '{print $2}') is already installed"
+  if [ "$have_major" -gt "$ASTERISK_MAJOR" ]; then note "WARNING: this AsterFi release is tested with Asterisk $ASTERISK_MAJOR; Settings > System will flag it."; fi
   if dpkg -s asterisk >/dev/null 2>&1; then
     apt_install asterisk asterisk-modules asterisk-core-sounds-en asterisk-core-sounds-en-wav \
       asterisk-core-sounds-en-gsm asterisk-moh-opsound-wav asterisk-moh-opsound-gsm || true
   fi
-elif [ "${ASTERISK_FROM_SOURCE:-0}" != 1 ] && [ "${pkg_major:-0}" -ge "$ASTERISK_MAJOR" ] 2>/dev/null; then
+elif [ "${ASTERISK_FROM_SOURCE:-0}" != 1 ] && [ "${pkg_major:-0}" -eq "$ASTERISK_MAJOR" ] 2>/dev/null; then
   note "Using the ${ID} package (Asterisk $pkg_major)"
   apt_install asterisk asterisk-modules asterisk-core-sounds-en asterisk-core-sounds-en-wav \
     asterisk-core-sounds-en-gsm asterisk-moh-opsound-wav asterisk-moh-opsound-gsm
 else
-  note "No Asterisk $ASTERISK_MAJOR package here (candidate: ${pkg_major:-none}); building from source."
+  note "No Asterisk $ASTERISK_MAJOR package here (candidate: ${pkg_major:-none}); building Asterisk $ASTERISK_SRC from source."
   note "This takes 10-30 minutes depending on the CPU."
   apt_install build-essential pkg-config autoconf automake libtool bzip2 patch xmlstarlet \
     libedit-dev uuid-dev libjansson-dev libxml2-dev libsqlite3-dev libssl-dev libsrtp2-dev \
@@ -71,9 +79,12 @@ else
   id asterisk >/dev/null 2>&1 || useradd --system --home-dir /var/lib/asterisk --shell /usr/sbin/nologin --user-group asterisk
   SRC=/usr/src/asterisk-build
   rm -rf "$SRC" && mkdir -p "$SRC"
-  curl -fsSL -o "$SRC/asterisk.tar.gz" "https://downloads.asterisk.org/pub/telephony/asterisk/asterisk-${ASTERISK_MAJOR}-current.tar.gz"
+  # The exact release this AsterFi version is tested with, checked against its published SHA-256.
+  AST_URL=https://downloads.asterisk.org/pub/telephony/asterisk
+  curl -fsSL -o "$SRC/asterisk.tar.gz" "$AST_URL/releases/asterisk-$ASTERISK_SRC.tar.gz"     || curl -fsSL -o "$SRC/asterisk.tar.gz" "$AST_URL/old-releases/asterisk-$ASTERISK_SRC.tar.gz"
+  echo "$(compat asteriskSource sha256)  $SRC/asterisk.tar.gz" | sha256sum -c --quiet - || die "The Asterisk $ASTERISK_SRC download doesn't match its checksum."
   tar -xzf "$SRC/asterisk.tar.gz" -C "$SRC"
-  cd "$SRC"/asterisk-"$ASTERISK_MAJOR".*/
+  cd "$SRC/asterisk-$ASTERISK_SRC"
   note "Configuring"
   ./configure --with-pjproject-bundled --with-jansson-bundled >>"$LOG" 2>&1
   make menuselect.makeopts >>"$LOG" 2>&1
@@ -115,6 +126,27 @@ UNIT
   rm -rf "$SRC"
 fi
 command -v asterisk >/dev/null || die "Asterisk didn't install."
+# Keep a packaged Asterisk on the supported major version: security fixes for it still install, but an apt
+# upgrade (or a distribution upgrade) can't move it to a new major version AsterFi isn't tested with.
+if dpkg -s asterisk >/dev/null 2>&1; then
+  cat >/etc/apt/preferences.d/asterfi-asterisk <<PIN
+# Written by the AsterFi installer. Keeps Asterisk on version $ASTERISK_MAJOR, which this AsterFi release
+# supports; updates within $ASTERISK_MAJOR (security fixes) still install. Re-running a newer AsterFi
+# installer updates this file when AsterFi supports a newer Asterisk.
+Package: asterisk asterisk-*
+Pin: version 1:$ASTERISK_MAJOR.*
+Pin-Priority: 990
+
+Package: asterisk asterisk-*
+Pin: version $ASTERISK_MAJOR.*
+Pin-Priority: 990
+
+Package: asterisk asterisk-*
+Pin: version *
+Pin-Priority: -1
+PIN
+  note "Asterisk is held on version $ASTERISK_MAJOR (/etc/apt/preferences.d/asterfi-asterisk)"
+fi
 systemctl enable asterisk >>"$LOG" 2>&1 || true
 [ "${have_major:-0}" -ge "$ASTERISK_MAJOR" ] 2>/dev/null || note "Installed $(asterisk -V)"
 
@@ -127,12 +159,13 @@ export ASTERFI_SOUNDS_DIR="$DATADIR/sounds/asterfi"
 step "Installing Node.js $NODE_MAJOR"
 node_major=$(command -v node >/dev/null && node -v | sed -E 's/^v([0-9]+).*/\1/' || echo 0)
 dist_node=$(apt-cache policy nodejs 2>/dev/null | awk '/Candidate:/ {print $2}' | sed -E 's/^[0-9]+://; s/[^0-9].*//')
-if [ "$node_major" -ge 20 ] 2>/dev/null; then
+if [ "$node_major" -ge "$NODE_MIN" ] 2>/dev/null; then
   note "Node.js $(node -v) is already installed"
-elif [ "${dist_node:-0}" -ge 20 ] 2>/dev/null; then
+  if [ "$node_major" -gt "$NODE_MAX" ]; then note "WARNING: this AsterFi release is tested with Node.js $NODE_MIN-$NODE_MAX; Settings > System will flag it."; fi
+elif [ "${dist_node:-0}" -ge "$NODE_MIN" ] && [ "${dist_node:-0}" -le "$NODE_MAX" ] 2>/dev/null; then
   apt_install nodejs npm
 else
-  # The distribution's Node.js is too old for Fastify 5: use NodeSource's repository.
+  # The distribution's Node.js is outside the supported range: use NodeSource's Node.js $NODE_MAJOR line.
   install -d -m 755 /etc/apt/keyrings
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg
   echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" >/etc/apt/sources.list.d/nodesource.list
