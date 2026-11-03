@@ -93,7 +93,7 @@ function Shell({ me, siteName, onLogout }) {
     <div className={`shell ${navHidden ? 'nav-hidden' : ''}`}>
       <nav className={`nav ${open ? 'open' : ''}`}>
         <div className="nav-brand">
-          <BrandLogo />
+          <a className="brand-link" href="https://asterfi.org" target="_blank" rel="noopener" title="asterfi.org"><BrandLogo /></a>
           {siteName && siteName !== 'AsterFi' && <small>{siteName}</small>}
         </div>
         <div className="nav-list">

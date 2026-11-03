@@ -62,6 +62,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; }
 .shell { display: flex; height: 100%; }
 .nav { width: 220px; flex-shrink: 0; background: var(--nav-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
 .nav-brand { padding: 20px 18px 14px; }
+.brand-link { display: block; }
 .nav-brand small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 4px; }
 /* The logo comes in a version for each theme; only the matching one shows. */
 .brand-logo { display: block; width: 100%; max-width: 190px; height: auto; }

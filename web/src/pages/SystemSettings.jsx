@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, ExternalLink, CheckCircle2, ArrowUpCircle, AlertTriangle, Cpu, MemoryStick, HardDrive } from 'lucide-react';
 import { api, fmtWhen } from '../api.js';
-import { useData, useToast, Toggle } from '../components/ui.jsx';
+import { useData, useToast } from '../components/ui.jsx';
 
 /* global __WEB_VERSIONS__ */
 const WEB_VERSIONS = typeof __WEB_VERSIONS__ === 'object' ? __WEB_VERSIONS__ : {};
@@ -52,7 +52,6 @@ function UpdateCard() {
     setBusy(true);
     try { setData(await api.get('/api/system/update?check=1')); } catch (e) { toast(e.message, 'error'); } finally { setBusy(false); }
   };
-  const setAuto = async (auto) => { try { setData(await api.put('/api/settings/updates', { auto })); } catch (e) { toast(e.message, 'error'); } };
   return (
     <div className="card">
       <div className="card-head"><h2>Updates</h2><div className="spacer" />
@@ -73,7 +72,6 @@ function UpdateCard() {
           <p className="small" style={{ marginTop: 0 }}>On the server, in the folder you installed AsterFi from, run these. The installer keeps your database, settings, prompts, voicemail and certificate. Calls in progress drop when the services restart.</p>
           <pre className="code-box">{'git pull\nsudo ./install.sh'}</pre>
         </>}
-        <Toggle title="Check for updates automatically" description={`Asks GitHub (${u.repo}) for the latest release every 6 hours. Nothing else is sent.`} checked={u.auto} onChange={setAuto} />
         <div className="muted small">{u.checkedAt ? `Last checked ${fmtWhen(u.checkedAt)}` : 'Not checked yet'}</div>
       </div>
     </div>

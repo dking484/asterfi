@@ -1050,10 +1050,6 @@ export default async function adminRoutes(app, { ami }) {
   // Components outside the versions this release supports, for the dashboard warning and the System tab badge.
   app.get('/api/system/compat', async () => ({ issues: annotateCompat(await sysVersions(ami, q)) }));
   app.get('/api/system/update', async (req) => updateStatus({ force: req.query.check === '1' }));
-  app.put('/api/settings/updates', async (req) => {
-    await setSetting('updates', { ...(await getSetting('updates')), auto: req.body?.auto !== false });
-    return updateStatus();
-  });
   // Nightly backups written by asterfi-backup.timer.
   const BACKUP_DIR = '/var/backups/asterfi';
   app.get('/api/backups', async () => {
