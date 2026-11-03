@@ -5,13 +5,14 @@
 #
 # Installs and configures everything AsterFi needs: Asterisk 22 (the distribution's package when it is
 # version 22 or newer, otherwise built from source), PostgreSQL, Node.js 22, nginx with a self-signed
-# certificate, ffmpeg/sox/lame/flite for audio, Kokoro text-to-speech, the AsterFi service and the
-# nightly backup timer. Safe to re-run: a second run updates AsterFi to this checkout and keeps the
-# database, settings, prompts and voicemail.
+# certificate, ffmpeg/sox/lame/flite for audio, Kokoro text-to-speech, faster-whisper voicemail transcription,
+# the AsterFi service and the nightly backup timer. Safe to re-run: a second run updates AsterFi to this
+# checkout and keeps the database, settings, prompts and voicemail.
 #
 # Options (environment variables):
 #   ASTERISK_FROM_SOURCE=1   build Asterisk 22 from source even when the distribution has a package
 #   SKIP_KOKORO=1            skip the Kokoro voices (~350 MB); prompts fall back to the Flite voice
+#   SKIP_STT=1               skip voicemail transcription (faster-whisper, ~650 MB)
 #   ASTERFI_TLS_NAMES=...    extra names/IPs for the certificate, comma-separated (e.g. pbx.example.com)
 set -euo pipefail
 

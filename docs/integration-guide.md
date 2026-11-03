@@ -3,7 +3,7 @@
 This guide covers the two ways an outside application connects to AsterFi:
 
 1. **Webhooks**: AsterFi POSTs call events (ringing, answered, ended, and more) to your URL as they happen.
-2. **REST API**: your app calls AsterFi to read users, call history, and voicemail (read-only).
+2. **REST API**: your app calls AsterFi to read users, call history, and voicemail, and to start click-to-call.
 
 Both are set up by an AsterFi administrator under **Settings → Webhooks & API**.
 
@@ -124,7 +124,9 @@ All call events share this `data` shape (the call summary):
 
 `call.ended` `status` values: `answered`, `missed` (rang users but nobody answered), `voicemail`, `busy`, `abandoned` (the caller hung up before anyone answered).
 
-Other events you can subscribe to: `voicemail.new`, `ivr.keypress`, `phone.registered`, `phone.unregistered`, `user.dnd`, `trunk.registration`. Wildcards work: `call.*` or `*`.
+Other events you can subscribe to: `voicemail.new`, `voicemail.transcribed`, `ivr.keypress`, `phone.registered`, `phone.unregistered`, `user.dnd`, `trunk.registration`. Wildcards work: `call.*` or `*`.
+
+`voicemail.transcribed` follows `voicemail.new` once the server has turned the message into text (usually a few seconds; see Settings → General → Voicemail transcription). Its data is `{ id, mailbox, transcript }`, where `id` matches `voicemail.new`. If transcription failed, `transcript` is `null` and `error` says so; an empty string means the message had no speech.
 
 ### 2.5 Example: an inbound call "screen pop"
 
@@ -152,7 +154,8 @@ Authentication header on every request: `Authorization: Bearer afk_...`
 | `GET /calls` | Call history, newest first. Filters: `since`, `until` (ISO), `number` (matches from/to on the last 10 digits), `extension`, `status`, `direction`, `limit` (max 1000), `offset` |
 | `GET /calls/active` | Calls in progress right now |
 | `GET /calls/:id` | One call, including its step-by-step `path` |
-| `GET /voicemail?mailbox=1001` | Voicemail messages (metadata) |
+| `GET /voicemail?mailbox=1001` | Voicemail messages (metadata), each with `transcript` and `transcriptStatus` (`pending`, `done`, `failed`, or `null` if never transcribed) |
+| `POST /calls` | Click-to-call (section 3.2). `202` with `{ callId, extension, number }` |
 
 Example: every call with one customer number:
 
@@ -161,10 +164,34 @@ curl -H "Authorization: Bearer $ASTERFI_KEY" \
   "https://asterfi.example.com/api/v1/calls?number=8605551234"
 ```
 
+### 3.2 Click-to-call
+
+`POST /calls` with a JSON body `{ "extension": "1001", "number": "8605551234" }` places a call for a user:
+
+1. AsterFi rings every phone signed in as that extension (desk phones, softphones and the web phone) for up to 30 seconds. The phone's screen shows **Calling 8605551234**.
+2. When the user picks up, AsterFi dials the number from that user, through the normal outbound routes and with their outbound caller ID. An extension number rings that coworker instead.
+
+```bash
+curl -X POST -H "Authorization: Bearer $ASTERFI_KEY" -H "content-type: application/json" \
+  -d '{"extension":"1001","number":"8605551234"}' \
+  "https://asterfi.example.com/api/v1/calls"
+```
+
+The reply comes back as soon as the user's phones start ringing. Its `callId` is the call's id: it sends the usual `call.*` webhooks (`call.outbound`, `call.answered`, `call.ended`) and appears at `GET /calls/:id` once it ends. Its path starts with a `click-to-call` step. If the user doesn't pick up, the call ends with status `abandoned`.
+
+| Status | Meaning |
+|---|---|
+| `202` | The user's phones are ringing |
+| `400` | `number` is missing, or is the user's own extension |
+| `404` | No user has that extension |
+| `409` | No phone is signed in as that extension, so there's nothing to ring |
+
+Only digits and a leading `+` are used from `number`, so feature codes such as `*97` can't be dialed this way.
+
 ---
 
 ## 4. Security notes
 
 - Keep the API key and webhook secret on your server. Never put them in browser or mobile code.
-- An API key can read every user's call history and voicemail list. Treat it like a password, and delete it under Settings → Webhooks & API if it leaks.
+- An API key can read every user's call history and voicemail list, and can place outside calls as any user (click-to-call). Treat it like a password, and delete it under Settings → Webhooks & API if it leaks.
 - Always verify webhook signatures. Only expose `/api/v1` to the networks or IPs that need it.

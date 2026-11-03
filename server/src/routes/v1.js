@@ -1,9 +1,10 @@
-// Public REST API for integrations. Auth: "Authorization: Bearer afk_...".
+// Public REST API for integrations. Auth: "Authorization: Bearer afk_...". Reads, plus click-to-call.
 import { q, one } from '../db.js';
 import { apiKeyValid } from '../auth.js';
 import { activeCalls } from '../calltracker.js';
 import { listMessages } from '../voicemail.js';
 import { digits, extSafe } from '../asterisk/dest.js';
+import { clickToCall } from '../clicktocall.js';
 
 const userOut = (u) => ({
   id: u.id, extension: u.extension, firstName: u.first_name, lastName: u.last_name,
@@ -15,7 +16,7 @@ const callOut = (c) => ({
   endedAt: c.ended_at, duration: c.duration, talkSeconds: c.talk_seconds, missedExtensions: c.missed_exts,
 });
 
-export default async function v1Routes(app) {
+export default async function v1Routes(app, { ami }) {
   app.addHook('preHandler', async (req, reply) => {
     const key = await apiKeyValid(req.headers.authorization);
     if (!key) return reply.code(401).send({ error: 'Invalid or missing API key' });
@@ -45,6 +46,18 @@ export default async function v1Routes(app) {
   });
 
   app.get('/calls/active', async () => activeCalls());
+
+  // Click-to-call: { extension, number }. Rings the user's phones; when they answer, AsterFi dials the number.
+  // 202 with { callId } right away; GET /calls/:id finds the call once it has ended.
+  app.post('/calls', async (req, reply) => {
+    const { extension, number } = req.body || {};
+    try {
+      return reply.code(202).send(await clickToCall(ami, { extension, number }));
+    } catch (e) {
+      if (!e.status) throw e;
+      return reply.code(e.status).send({ error: e.message });
+    }
+  });
 
   app.get('/calls/:id', async (req, reply) => {
     const c = await one('SELECT * FROM calls WHERE id=$1', [req.params.id]);

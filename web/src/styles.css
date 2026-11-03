@@ -104,6 +104,15 @@ h1, h2, h3 { margin: 0; font-weight: 600; }
 .btn.danger.solid { background: var(--red); border-color: var(--red); color: #fff; }
 .btn.ghost { border-color: transparent; background: transparent; }
 .btn.ghost:hover { background: var(--panel-2); }
+/* A phone number with a call button to its left (Call History, Voicemail). */
+.call-number { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.call-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex-shrink: 0; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--panel-2); color: var(--accent); cursor: pointer; }
+/* Voicemail transcript, in a row under its message. */
+.t tr.vm-has-transcript td { border-bottom: none; padding-bottom: 4px; }
+.t tr.vm-transcript-row td { padding-top: 0; }
+.vm-transcript { max-width: 760px; font-size: 13.5px; line-height: 1.5; color: var(--text-2); }
+.vm-transcript > .btn:first-child { margin-left: -10px; }
+.call-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.sm { height: 28px; padding: 0 10px; font-size: 12.5px; }
 .btn.icon { width: 34px; padding: 0; justify-content: center; }
 .btn.sm.icon { width: 28px; }

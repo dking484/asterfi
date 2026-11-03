@@ -141,7 +141,8 @@ function General() {
         <button className="btn primary" onClick={save}>Save</button>
       </div></div>
       <VoiceSettings />
-      {info && <div className="card" style={{ marginTop: 16 }}><div className="card-head"><h2>System</h2></div><div className="card-body small">
+      <TranscriptionSettings />
+      {info &&<div className="card" style={{ marginTop: 16 }}><div className="card-head"><h2>System</h2></div><div className="card-body small">
         <div className="row"><div className="muted">Asterisk</div><div>{info.asterisk}</div></div>
         <div className="row" style={{ marginTop: 6 }}><div className="muted">Manager connection</div><div>{info.amiConnected ? <span className="badge green">Connected</span> : <span className="badge red">Disconnected</span>}</div></div>
       </div></div>}
@@ -205,6 +206,31 @@ function VoiceSettings() {
           <span style={{ flex: 1 }}>Re-record existing text prompts with the new default voice?</span>
           <button className="btn sm primary" onClick={regenerate}>Re-record</button><button className="btn sm ghost" onClick={() => setRegen(null)}>Not now</button>
         </div>}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- voicemail transcription
+function TranscriptionSettings() {
+  const { data, reload } = useData('/api/settings/stt');
+  const toast = useToast();
+  if (!data) return null;
+  const save = async (patch) => {
+    try { await api.put('/api/settings/stt', patch); await reload(); toast('Transcription settings saved'); } catch (e) { toast(e.message, 'error'); }
+  };
+  return (
+    <div className="card" style={{ marginTop: 16 }}>
+      <div className="card-head"><h2>Voicemail transcription</h2></div>
+      <div className="card-body">
+        <p className="muted small" style={{ marginTop: 0 }}>New voicemails are turned into text on this server (no cloud service) and shown on the Voicemail page and in voicemail emails.</p>
+        {!data.available && <div className="alert warn">Transcription isn't installed on this server. Run the installer again (without SKIP_STT=1) to add it.</div>}
+        <Toggle title="Transcribe new voicemails" description="Emails wait up to 90 seconds for the text, so they arrive a few seconds later than before." checked={data.enabled} onChange={(v) => save({ enabled: v })} />
+        <Field label="Model" hint="Small makes fewer mistakes with names and numbers but takes about three times as long.">
+          <select value={data.model} disabled={!data.available} onChange={(e) => save({ model: e.target.value })}>
+            {data.models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </Field>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import JsSIP from 'jssip';
 import { Phone, PhoneOff, PhoneIncoming, Mic, MicOff, Pause, Play, Grid3x3, X, Delete } from 'lucide-react';
 import { api, formatNumber, fmtDuration } from '../api.js';
-import { Switch } from './ui.jsx';
+import { Switch, useToast } from './ui.jsx';
 
 const STORE = 'asterfi.webphone.enabled';
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
@@ -154,15 +154,22 @@ export default function WebPhone({ me }) {
       setNotice(`Couldn't place the call: ${e.message}`);
     }
   };
-  // Other pages (Contacts) ask for a call with a window event.
+  // Other pages (Contacts, Call History, Voicemail) ask for a call with a window event. When this browser's
+  // web phone is ready the call goes out here; otherwise AsterFi rings the user's desk phone and dials once
+  // they pick up (click-to-call).
+  const toast = useToast();
   const dialRef = useRef(null);
   dialRef.current = (n) => {
-    setOpen(true);
-    setNumber(String(n));
-    if (!enabled) setNotice('Turn on the web phone (switch above) to call from your browser.');
-    else if (reg.state !== 'registered') setNotice('The web phone is still connecting. Press call once it shows Ready.');
-    else if (session.current) setNotice('Finish your current call first.');
-    else dial(n);
+    if (enabled && reg.state === 'registered') {
+      setOpen(true);
+      setNumber(String(n));
+      if (session.current) setNotice('Finish your current call first.');
+      else dial(n);
+      return;
+    }
+    api.post('/api/my/call', { number: String(n) })
+      .then((r) => toast(`Ringing your phone. Pick up to call ${formatNumber(r.number)}.`))
+      .catch((e) => toast(e.message, 'error'));
   };
   useEffect(() => {
     const h = (e) => dialRef.current?.(e.detail?.number || '');

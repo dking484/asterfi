@@ -8,7 +8,8 @@ import { normalizeNumber, extSafe } from '../asterisk/dest.js';
 import { validateFlow, RECORDINGS } from '../asterisk/ivr.js';
 import { fieldDefs, saveFieldDefs, mergeCustom, visibleCustom } from '../customfields.js';
 import { activeCalls, activeCallsFor, invalidateUserCache } from '../calltracker.js';
-import { listMessages, findMessage, transcode, deleteMessage, markHeard } from '../voicemail.js';
+import { listMessages, findMessage, transcode, deleteMessage, markHeard, transcribeVoicemail } from '../voicemail.js';
+import { sttSettings, STT_MODELS } from '../stt.js';
 import { sendTestEmail, sendLoginDetailsEmail } from '../notify/email.js';
 import { sendTest, redeliver } from '../notify/webhooks.js';
 import { bus, EVENT_TYPES } from '../events.js';
@@ -22,6 +23,7 @@ import { readdir, stat, rm } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import { CONTACT_QUERY } from '../directory.js';
 import { getForward, setForward } from '../forward.js';
+import { clickToCall } from '../clicktocall.js';
 
 class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -76,7 +78,7 @@ export default async function adminRoutes(app, { ami }) {
   // --- auth -------------------------------------------------------------
   const OPEN = ['/api/setup', '/api/login', '/api/setup/status', '/api/forgot', '/api/reset'];
   // What a non-admin user may call: their own account, voicemail and calls, plus a name directory.
-  const USER_ROUTES = [/^GET \/api\/me$/, /^POST \/api\/logout$/, /^(GET|PUT) \/api\/my$/, /^POST \/api\/my\/(dnd|password)$/, /^GET \/api\/my\/dashboard$/, /^GET \/api\/my\/webphone$/,
+  const USER_ROUTES = [/^GET \/api\/me$/, /^POST \/api\/logout$/, /^(GET|PUT) \/api\/my$/, /^POST \/api\/my\/(dnd|password|call)$/, /^GET \/api\/my\/dashboard$/, /^GET \/api\/my\/webphone$/,
     /^GET \/api\/stream$/, /^GET \/api\/calls$/, /^GET \/api\/calls\/[\d.]+\/recording$/, /^(GET|POST) \/api\/contacts$/, /^GET \/api\/contact-fields$/, /^(PUT|DELETE) \/api\/contacts\/\d+$/, /^GET \/api\/users$/, /^GET \/api\/groups$/, /^GET \/api\/presence$/,
     /^(GET|POST|DELETE) \/api\/voicemail(\/|$)/];
   app.addHook('preHandler', async (req) => {
@@ -226,6 +228,8 @@ export default async function adminRoutes(app, { ami }) {
     pushUserState(req.user.extension).catch(() => {});
     return r;
   });
+  // Click-to-call from the console: ring my phones, then dial the number once I pick up.
+  app.post('/api/my/call', async (req) => clickToCall(ami, { extension: req.user.extension, number: req.body?.number }));
   app.get('/api/my/webphone', async (req) => {
     const u = await one('SELECT extension, first_name, last_name, sip_password FROM users WHERE id=$1', [req.user.id]);
     return {
@@ -591,6 +595,15 @@ export default async function adminRoutes(app, { ami }) {
     await setSetting('tts', { ...(await getSetting('tts')), ...b });
     return { ok: true };
   });
+  // --- voicemail transcription settings ------------------------------------
+  app.get('/api/settings/stt', async () => ({ ...(await sttSettings()), models: STT_MODELS }));
+  app.put('/api/settings/stt', async (req) => {
+    const b = pick(req.body || {}, ['enabled', 'model']);
+    if ('enabled' in b) b.enabled = !!b.enabled;
+    if (b.model !== undefined && !STT_MODELS.some((m) => m.id === b.model)) throw bad('Unknown model.');
+    await setSetting('stt', { ...(await getSetting('stt')), ...b });
+    return { ok: true };
+  });
   app.post('/api/tts/preview', async (req, reply) => {
     const text = String(req.body?.text || '').trim().slice(0, 500);
     if (!text) throw bad('Enter some text to preview.');
@@ -950,6 +963,20 @@ export default async function adminRoutes(app, { ami }) {
     const m = await findMessage(await ownBox(req, req.params.mailbox), req.params.id);
     if (!m) throw notFound();
     reply.type('audio/mpeg').header('cache-control', 'private, max-age=3600').send(await transcode(`${m.file}.wav`));
+  });
+  // Whether this server transcribes voicemail, so the Voicemail page knows to offer "Transcribe".
+  app.get('/api/voicemail/transcription', async () => { const { enabled, available } = await sttSettings(); return { enabled, available }; });
+  // Transcribe one message now (e.g. one left before transcription was turned on). Runs in the background;
+  // the page refreshes on the voicemail.transcribed event.
+  app.post('/api/voicemail/:mailbox/:id/transcribe', async (req) => {
+    const mailbox = await ownBox(req, req.params.mailbox);
+    if (!(await sttSettings()).available) throw new HttpError(409, 'Voicemail transcription is not installed on this server.');
+    const row = await one('SELECT * FROM voicemails WHERE mailbox=$1 AND msg_id=$2', [mailbox, req.params.id]);
+    if (!row) throw notFound();
+    if (row.transcript_status === 'pending') return { ok: true };
+    await q(`UPDATE voicemails SET transcript_status='pending' WHERE msg_id=$1`, [row.msg_id]);
+    transcribeVoicemail(row).catch(() => {});
+    return { ok: true };
   });
   app.post('/api/voicemail/:mailbox/:id/heard', async (req) => { await markHeard(await ownBox(req, req.params.mailbox), req.params.id); return { ok: true }; });
   app.delete('/api/voicemail/:mailbox/:id', async (req) => {

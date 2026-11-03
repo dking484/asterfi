@@ -1,11 +1,13 @@
-import { useCallback, useState } from 'react';
-import { Voicemail as VmIcon, Trash2, Download } from 'lucide-react';
+import { Fragment, useCallback, useState } from 'react';
+import { Voicemail as VmIcon, Trash2, Download, FileText } from 'lucide-react';
 import { api, formatNumber, fmtDuration, fmtWhen } from '../api.js';
 import { useData, useLiveEvents, useToast, Empty, Confirm } from '../components/ui.jsx';
+import { CallNumber } from './Calls.jsx';
 
 export default function Voicemail({ me }) {
   const { data, reload, setData } = useData('/api/voicemail');
   const { data: boxes } = useData('/api/voicemail/boxes');
+  const { data: stt } = useData('/api/voicemail/transcription');
   const [box, setBox] = useState('all');
   const [del, setDel] = useState(null);
   const multi = (boxes || []).length > 1;
@@ -19,6 +21,13 @@ export default function Voicemail({ me }) {
     setData((d) => d.map((x) => (x.msgId === m.msgId ? { ...x, folder: 'Old', heard: true } : x)));
   };
   const audio = (m) => `/api/voicemail/${m.mailbox}/${encodeURIComponent(m.msgId)}/audio`;
+  const transcribe = async (m) => {
+    try {
+      await api.post(`/api/voicemail/${m.mailbox}/${encodeURIComponent(m.msgId)}/transcribe`);
+      setData((d) => d.map((x) => (x.msgId === m.msgId ? { ...x, transcriptStatus: 'pending' } : x)));
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  const cols = multi ? 7 : 6;
 
   return (
     <>
@@ -39,9 +48,10 @@ export default function Voicemail({ me }) {
           <div className="table-wrap"><table className="t">
             <thead><tr><th></th><th>From</th>{multi && <th>Mailbox</th>}<th>Received</th><th>Length</th><th>Play</th><th></th></tr></thead>
             <tbody>{shown.map((m) => (
-              <tr key={m.msgId}>
+              <Fragment key={m.msgId}>
+              <tr className={hasTranscriptRow(m, stt) ? 'vm-has-transcript' : ''}>
                 <td style={{ width: 20 }}>{m.folder === 'INBOX' && <span className="dot" style={{ background: 'var(--accent)' }} title="New" />}</td>
-                <td style={{ fontWeight: m.folder === 'INBOX' ? 600 : 400 }}>{m.callerName && m.callerName !== m.callerNum ? m.callerName : formatNumber(m.callerNum) || 'Unknown'}{m.callerName && m.callerName !== m.callerNum && <div className="muted small" style={{ fontWeight: 400 }}>{formatNumber(m.callerNum)}</div>}</td>
+                <td style={{ fontWeight: m.folder === 'INBOX' ? 600 : 400 }}>{m.callerName && m.callerName !== m.callerNum ? m.callerName : <CallNumber number={m.callerNum}>{formatNumber(m.callerNum) || 'Unknown'}</CallNumber>}{m.callerName && m.callerName !== m.callerNum && <div className="muted small" style={{ fontWeight: 400 }}><CallNumber number={m.callerNum} /></div>}</td>
                 {multi && <td>{m.groupBox ? <span className="badge">{m.boxName}</span> : <span className="muted">Mine</span>}</td>}
                 <td className="muted" style={{ whiteSpace: 'nowrap' }}>{fmtWhen(m.receivedAt)}</td>
                 <td className="num muted">{fmtDuration(m.duration)}</td>
@@ -51,6 +61,8 @@ export default function Voicemail({ me }) {
                   <button className="btn ghost sm icon" title="Delete" onClick={() => setDel(m)}><Trash2 size={15} /></button>
                 </td>
               </tr>
+              {hasTranscriptRow(m, stt) && <tr className="vm-transcript-row"><td /><td colSpan={cols - 1}><Transcript m={m} onTranscribe={() => transcribe(m)} /></td></tr>}
+              </Fragment>
             ))}</tbody>
           </table></div>
         )}
@@ -59,5 +71,21 @@ export default function Voicemail({ me }) {
         await api.del(`/api/voicemail/${del.mailbox}/${encodeURIComponent(del.msgId)}`); setDel(null); toast('Voicemail deleted'); reload();
       }} />}
     </>
+  );
+}
+
+// A transcript row shows under a message once it has (or is getting) one, or when it could be transcribed now.
+const hasTranscriptRow = (m, stt) => !!m.transcriptStatus || !!stt?.available;
+
+function Transcript({ m, onTranscribe }) {
+  if (m.transcriptStatus === 'pending') return <div className="vm-transcript muted">Transcribing…</div>;
+  if (m.transcriptStatus === 'done') {
+    return m.transcript ? <div className="vm-transcript">{m.transcript}</div> : <div className="vm-transcript muted">No speech in this message.</div>;
+  }
+  return (
+    <div className="vm-transcript muted">
+      {m.transcriptStatus === 'failed' && "Couldn't transcribe this message. "}
+      <button type="button" className="btn ghost sm" onClick={onTranscribe}><FileText size={13} />{m.transcriptStatus === 'failed' ? 'Try again' : 'Transcribe'}</button>
+    </div>
   );
 }

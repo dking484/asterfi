@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PhoneIncoming, PhoneOutgoing, PhoneMissed, ArrowLeftRight, Voicemail, Search, History, ChevronLeft, ChevronRight, Disc } from 'lucide-react';
+import { Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed, ArrowLeftRight, Voicemail, Search, History, ChevronLeft, ChevronRight, Disc } from 'lucide-react';
 import { api, formatNumber, fmtDuration, fmtWhen, fullName } from '../api.js';
 import { useLiveEvents, Empty, Seg, Drawer } from '../components/ui.jsx';
 import { useDirectory } from '../components/Destination.jsx';
-import { useContactLookup, contactName } from './Contacts.jsx';
+import { useContactLookup, contactName, dialNumber } from './Contacts.jsx';
 
 export function partyLabel(num, dir, findContact) {
   if (!num) return 'Unknown';
@@ -43,10 +43,43 @@ export function answeredParty(c, dir) {
   return { name: u ? fullName(u) : ext, sub: to ? `Forwarded → ${formatNumber(to)}` : `Ext. ${ext}` };
 }
 
+// The number on the other end of a call, the one worth calling back: the caller on an incoming call,
+// the number dialed on an outgoing one, and whichever side isn't me on an internal call.
+export function otherParty(c, myExt) {
+  if (c.direction === 'inbound') return c.from_num;
+  if (c.direction === 'outbound') return c.to_num;
+  return c.from_num === myExt ? c.to_num : c.from_num;
+}
+const callable = (n) => String(n || '').replace(/\D/g, '').length >= 3; // not "anonymous" or a feature code
+
+// A number with a phone button to its left that calls it (web phone, or the user's desk phone rings first).
+// Only the button calls; the number itself is plain text.
+export function CallNumber({ number, children }) {
+  const label = children ?? formatNumber(number);
+  if (!callable(number)) return label;
+  return (
+    <span className="call-number">
+      <button type="button" className="call-btn" title={`Call ${formatNumber(number)}`} aria-label={`Call ${formatNumber(number)}`} onClick={(e) => { e.stopPropagation(); dialNumber(number); }}>
+        <Phone size={12} />
+      </button>
+      {label}
+    </span>
+  );
+}
+
+function FromCell({ c, dir, findContact, call }) {
+  const contact = findContact(c.from_num);
+  const named = contact || (c.from_name && c.from_name !== c.from_num);
+  const main = contact ? contactName(contact) : named ? c.from_name : partyLabel(c.from_num, dir);
+  if (!named) return <div>{call ? <CallNumber number={c.from_num}>{main}</CallNumber> : main}</div>;
+  return <><div>{main}</div><div className="muted small">{call ? <CallNumber number={c.from_num} /> : formatNumber(c.from_num)}</div></>;
+}
+
 // Who the call was for on top (group or person), the number it came in on below; just the number otherwise.
-function ToCell({ c, dir, findContact }) {
+function ToCell({ c, dir, findContact, call }) {
   const r = recipientLabel(c, dir);
-  const num = partyLabel(c.to_num, dir, findContact);
+  const label = partyLabel(c.to_num, dir, findContact);
+  const num = call ? <CallNumber number={c.to_num}>{label}</CallNumber> : label;
   if (!r) return <div>{num}</div>;
   return <><div>{r}</div><div className="muted small">{num}</div></>;
 }
@@ -79,7 +112,7 @@ const PAGE = 50;
 const SCOPE_KEY = 'asterfi.calls.scope';
 const readScope = () => { try { return localStorage.getItem(SCOPE_KEY) || 'all'; } catch { return 'all'; } };
 
-export default function Calls({ isAdmin = false }) {
+export default function Calls({ me, isAdmin = false }) {
   const [filter, setFilter] = useState('');
   const [scope, setScopeState] = useState(isAdmin ? readScope : 'mine');
   const setScope = (v) => { setScopeState(v); try { localStorage.setItem(SCOPE_KEY, v); } catch { /* private window */ } };
@@ -116,7 +149,7 @@ export default function Calls({ isAdmin = false }) {
       </div>
       <div className="card">
         {data && data.rows.length === 0 ? <Empty icon={History} title="No calls found" /> : (
-          <CallTable rows={data?.rows || []} />
+          <CallTable rows={data?.rows || []} me={me} />
         )}
       </div>
       {pages > 1 && <div className="toolbar" style={{ marginTop: 12 }}>
@@ -129,7 +162,7 @@ export default function Calls({ isAdmin = false }) {
 }
 
 // The call list used by Call History and the Dashboard; click a row for its details.
-export function CallTable({ rows }) {
+export function CallTable({ rows, me }) {
   const dir = useDirectory();
   const findContact = useContactLookup();
   const [detail, setDetail] = useState(null);
@@ -137,19 +170,22 @@ export function CallTable({ rows }) {
     <>
       <div className="table-wrap"><table className="t">
         <thead><tr><th></th><th>From</th><th>To</th><th>Answered by</th><th>Result</th><th>When</th><th className="actions">Duration</th></tr></thead>
-        <tbody>{rows.map((c) => (
+        <tbody>{rows.map((c) => {
+          const party = otherParty(c, me?.extension);
+          return (
           <tr key={c.id} className="clickable" onClick={() => setDetail(c)}>
             <td style={{ width: 36 }}><CallIcon c={c} /></td>
-            <td><div>{findContact(c.from_num) ? contactName(findContact(c.from_num)) : c.from_name && c.from_name !== c.from_num ? c.from_name : partyLabel(c.from_num, dir)}</div>{(findContact(c.from_num) || (c.from_name && c.from_name !== c.from_num)) && <div className="muted small">{formatNumber(c.from_num)}</div>}</td>
-            <td><ToCell c={c} dir={dir} findContact={findContact} /></td>
+            <td><FromCell c={c} dir={dir} findContact={findContact} call={party === c.from_num} /></td>
+            <td><ToCell c={c} dir={dir} findContact={findContact} call={party === c.to_num && party !== c.from_num} /></td>
             <td><AnsweredCell c={c} dir={dir} /></td>
             <td style={{ whiteSpace: 'nowrap' }}><StatusBadge status={c.status} />{isRecorded(c) && <Disc size={13} color="var(--red)" style={{ verticalAlign: -2, marginLeft: 6 }} aria-label="Recorded" />}</td>
             <td className="muted" style={{ whiteSpace: 'nowrap' }}>{fmtWhen(c.started_at)}</td>
             <td className="num muted actions">{c.status === 'answered' ? fmtDuration(c.talk_seconds) : fmtDuration(c.duration)}</td>
           </tr>
-        ))}</tbody>
+          );
+        })}</tbody>
       </table></div>
-      {detail && <CallDetail c={detail} dir={dir} onClose={() => setDetail(null)} />}
+      {detail && <CallDetail c={detail} dir={dir} party={otherParty(detail, me?.extension)} onClose={() => setDetail(null)} />}
     </>
   );
 }
@@ -168,9 +204,10 @@ const STEP = {
   callback: (s, dir) => `Asked ${partyLabel(s.group, dir)} for a callback`,
   voicemail: (s, dir) => `Sent to voicemail for ${partyLabel(s.mailbox, dir)}`,
   recording: () => 'Recording started (once answered)',
+  'click-to-call': (s, dir) => `Click-to-call: rang ${partyLabel(s.extension, dir)} first, then dialed ${formatNumber(s.number)}`,
 };
 
-function CallDetail({ c, dir, onClose }) {
+function CallDetail({ c, dir, party, onClose }) {
   const t0 = new Date(c.started_at).getTime();
   return (
     <Drawer title="Call details" onClose={onClose}>
@@ -178,6 +215,7 @@ function CallDetail({ c, dir, onClose }) {
         <div><div className="muted small">From</div><div>{c.from_name || partyLabel(c.from_num, dir)}</div><div className="muted small">{formatNumber(c.from_num)}</div></div>
         <div><div className="muted small">To</div><div>{partyLabel(c.to_num, dir)}</div></div>
       </div>
+      {callable(party) && <button className="btn primary" style={{ marginBottom: 18 }} onClick={() => dialNumber(party)}><Phone size={15} />Call {partyLabel(party, dir)}</button>}
       <div className="row" style={{ marginBottom: 18 }}>
         <div><div className="muted small">Result</div><StatusBadge status={c.status} /></div>
         <div><div className="muted small">Talk time</div>{fmtDuration(c.talk_seconds)}</div>

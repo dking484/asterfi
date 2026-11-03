@@ -107,7 +107,7 @@ const known = (v) => (v && v !== '<unknown>' ? v : null);
 // Caller ID is sometimes set after the channel is created.
 function onNewCallerid(e) {
   const c = calls.get(e.Linkedid);
-  if (!c || e.Uniqueid !== c.id) return;
+  if (!c || e.Uniqueid !== c.id || c.clickToCall) return; // a click-to-call stays "from" the user who placed it
   c.fromNum = known(e.CallerIDNum) || c.fromNum;
   c.fromName = known(e.CallerIDName) || c.fromName;
 }
@@ -139,6 +139,18 @@ function onUserEvent(e) {
       c.toNum = e.Number;
       publish('call.outbound', summary(c));
       break;
+    case 'AsterFiClick': {
+      // Click-to-call: the call starts on a Local channel, so credit it to the user whose phones ring first.
+      // Their own phones ringing isn't the call ringing them, so it never counts as missed (DialBegin skips fromExt).
+      const u = userNow(e.Extension);
+      c.clickToCall = true;
+      c.fromExt = e.Extension;
+      c.fromNum = e.Extension;
+      c.fromName = u ? `${u.first_name} ${u.last_name}`.trim() : c.fromName;
+      c.toNum = e.Number;
+      c.path.push({ at: new Date(), step: 'click-to-call', extension: e.Extension, number: e.Number });
+      break;
+    }
     case 'AsterFiTarget':
       for (const x of String(e.Extensions || '').split('&').filter(Boolean)) {
         if (x !== c.fromExt) c.targets.add(x);
