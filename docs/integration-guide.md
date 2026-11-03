@@ -21,7 +21,7 @@ Both are set up by an AsterFi administrator under **Settings → Webhooks & API*
 **Network requirements**
 
 - **Webhooks** go *out* from AsterFi. AsterFi needs outbound HTTPS to your URL. Nothing has to be opened inbound.
-- **The REST API** (only needed if you use it) comes *in* to AsterFi at `https://<asterfi-host>/api/v1`. A cloud-hosted app can't reach a private LAN address such as `192.0.2.10`. Expose AsterFi through one of these:
+- **The REST API** (only needed if you use it) comes *in* to AsterFi at `https://<asterfi-host>/api/v1`. A cloud-hosted app can't reach a private LAN address. Expose AsterFi through one of these:
   - a reverse proxy or port forward that allows only your app's IPs,
   - a VPN or tunnel (WireGuard, Tailscale, Cloudflare Tunnel),
   - a small agent on the LAN that relays requests.

@@ -10,7 +10,7 @@
 //   3. Acting as the adopted device, open the WebSocket the console pointed us at (auth = Basic sha512(key),
 //      the scheme a real phone uses) and record every message the console sends: assignment, SIP config, etc.
 //
-//   node talk-probe.mjs --raw <hex> --ip 192.0.2.10 --log /var/lib/asterfi/unifi/probe.log
+//   node talk-probe.mjs --raw <hex> --ip <this-server-ip> --log /var/lib/asterfi/unifi/probe.log
 import dgram from 'node:dgram';
 import http from 'node:http';
 import { appendFileSync } from 'node:fs';
@@ -23,7 +23,8 @@ const { Server } = require('ssh2');
 const WebSocket = require('ws');
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
-const MY_IP = arg('ip', '192.0.2.10');
+const MY_IP = arg('ip');
+if (!MY_IP) { console.error('usage: node talk-probe.mjs --raw <hex> --ip <this-server-ip> [--log FILE]'); process.exit(1); }
 const MY_MAC = arg('mac', '74:83:c2:de:c0:01');
 const SSH_PORT = Number(arg('port', '32768'));
 const LOG = arg('log', '/var/lib/asterfi/unifi/probe.log');

@@ -2,6 +2,7 @@ node_modules/
 web/dist/
 *.log
 .env
+.env.local
 # Server address and password for the deploy scripts
 deploy/local.env
 # Extracted UniFi Talk controller code (Ubiquiti's, kept locally for reference only)

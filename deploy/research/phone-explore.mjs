@@ -6,7 +6,8 @@ import { createRequire } from 'node:module';
 const require = createRequire('/opt/asterfi/server/package.json');
 const { Client } = require('ssh2');
 
-const IP = process.argv[2] || '192.0.2.20';
+const IP = process.argv[2];
+if (!IP) { console.error('usage: node phone-explore.mjs <phone-ip> [port]'); process.exit(1); }
 const PORT = Number(process.argv[3] || 32768);
 
 const COMMANDS = [
