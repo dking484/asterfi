@@ -55,7 +55,7 @@ const app = Fastify({ logger: { level: 'info' }, disableRequestLogging: true, tr
 await app.register(cookie);
 await app.register(multipart, { limits: { fileSize: 20 * 1024 * 1024 } });
 await app.register(adminRoutes, { ami });
-await app.register(v1Routes, { prefix: '/api/v1' });
+await app.register(v1Routes, { prefix: '/api/v1', ami });
 await app.register(phonebookRoutes);
 
 if (existsSync(config.webDir)) {

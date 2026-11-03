@@ -5,6 +5,7 @@ import path from 'node:path';
 import { config } from './config.js';
 import { q, one } from './db.js';
 import { publish } from './events.js';
+import { transcribe, sttSettings } from './stt.js';
 
 const FOLDERS = ['INBOX', 'Old', 'Urgent'];
 let ami = null;
@@ -60,7 +61,35 @@ export async function listMessages(mailbox) {
       }
     }
   }
+  // Transcripts live in the database, keyed by Asterisk's msg_id.
+  const rows = out.length ? await q('SELECT msg_id, transcript, transcript_status FROM voicemails WHERE msg_id = ANY($1)', [out.map((m) => m.msgId)]) : [];
+  const byId = new Map(rows.map((r) => [r.msg_id, r]));
+  for (const m of out) {
+    m.transcript = byId.get(m.msgId)?.transcript ?? null;
+    m.transcriptStatus = byId.get(m.msgId)?.transcript_status ?? null;
+  }
   return out.sort((a, b) => b.receivedAt - a.receivedAt);
+}
+
+const EMAIL_WAIT_MS = 90 * 1000; // the longest a voicemail email waits for its transcript
+
+// Transcribes one message (a voicemails row) and stores the text. Resolves to the text, or null if it failed.
+export async function transcribeVoicemail(vm) {
+  const m = await findMessage(vm.mailbox, vm.msg_id);
+  if (!m) return null;
+  const { model } = await sttSettings();
+  await q(`UPDATE voicemails SET transcript_status='pending' WHERE msg_id=$1`, [vm.msg_id]);
+  try {
+    const text = await transcribe(`${m.file}.wav`, model);
+    await q(`UPDATE voicemails SET transcript=$2, transcript_status='done' WHERE msg_id=$1`, [vm.msg_id, text]);
+    publish('voicemail.transcribed', { id: vm.msg_id, mailbox: vm.mailbox, transcript: text });
+    return text;
+  } catch (e) {
+    console.error('voicemail transcription', vm.msg_id, e.message);
+    await q(`UPDATE voicemails SET transcript_status='failed' WHERE msg_id=$1`, [vm.msg_id]);
+    publish('voicemail.transcribed', { id: vm.msg_id, mailbox: vm.mailbox, transcript: null, error: 'Transcription failed' });
+    return null;
+  }
 }
 
 async function scan() {
@@ -81,15 +110,20 @@ async function scan() {
   firstScan = false;
 }
 
-async function onNewVoicemail(vm) {
-  const user = await one('SELECT * FROM users WHERE extension=$1', [vm.mailbox]);
-  const group = user ? null : await one(`SELECT * FROM ring_groups WHERE extension=$1 AND (voicemail->>'enabled')::boolean`, [vm.mailbox]);
+async function onNewVoicemail(row) {
+  const stt = await sttSettings();
+  const transcribing = stt.enabled && stt.available ? transcribeVoicemail(row).catch(() => null) : null;
+  const user = await one('SELECT * FROM users WHERE extension=$1', [row.mailbox]);
+  const group = user ? null : await one(`SELECT * FROM ring_groups WHERE extension=$1 AND (voicemail->>'enabled')::boolean`, [row.mailbox]);
   publish('voicemail.new', {
-    id: vm.msg_id, mailbox: vm.mailbox, from: vm.caller_num, fromName: vm.caller_name,
-    duration: vm.duration, receivedAt: vm.received_at,
+    id: row.msg_id, mailbox: row.mailbox, from: row.caller_num, fromName: row.caller_name,
+    duration: row.duration, receivedAt: row.received_at,
     user: user ? { id: user.id, extension: user.extension, name: `${user.first_name} ${user.last_name}`.trim(), email: user.email } : null,
     group: group ? { id: group.id, extension: group.extension, name: group.name } : null,
   });
+  // The email waits for the transcript, but not forever: a slow one arrives later on the Voicemail page.
+  const transcript = transcribing && await Promise.race([transcribing, new Promise((r) => setTimeout(() => r(null), EMAIL_WAIT_MS))]);
+  const vm = { ...row, transcript: transcript || null };
   if (group) {
     // One "missed call + voicemail" email to each member (if chosen) and any extra addresses.
     const members = group.voicemail.email_members

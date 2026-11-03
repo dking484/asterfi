@@ -4,6 +4,7 @@
 #   ASTERFI_SOUNDS_DIR  where prompts go: <astdatadir>/sounds/asterfi (default /usr/share/asterisk/sounds/asterfi)
 #   ASTERFI_TLS_SAN     subjectAltName for the self-signed certificate (default: hostname + primary IP)
 #   SKIP_KOKORO=1       skip the Kokoro text-to-speech voices
+#   SKIP_STT=1          skip voicemail transcription (faster-whisper)
 set -e
 cd "$(dirname "$0")"
 SOUNDS=${ASTERFI_SOUNDS_DIR:-/usr/share/asterisk/sounds/asterfi}
@@ -87,6 +88,21 @@ if [ "${SKIP_KOKORO:-0}" != 1 ]; then
     [ -f /opt/asterfi/tts/models/voices-v1.0.bin ] || curl -fsSL -o /opt/asterfi/tts/models/voices-v1.0.bin $K/voices-v1.0.bin
     install -m 755 tts/kokoro_tts.py /opt/asterfi/tts/kokoro_tts.py
   ) || { echo "WARNING: Kokoro text-to-speech didn't install; typed prompts will use Flite."; rm -rf /opt/asterfi/tts/venv; }
+fi
+
+# Voicemail transcription (faster-whisper on the CPU). Optional (SKIP_STT=1 skips it).
+# Downloads both models Settings offers: base.en (~150 MB, fast) and small.en (~480 MB, more accurate).
+if [ "${SKIP_STT:-0}" != 1 ]; then
+  ( set -e
+    if [ ! -x /opt/asterfi/stt/venv/bin/python ]; then
+      mkdir -p /opt/asterfi/stt/models
+      python3 -m venv /opt/asterfi/stt/venv
+      /opt/asterfi/stt/venv/bin/pip install -q --disable-pip-version-check faster-whisper
+    fi
+    install -m 755 stt/whisper_stt.py /opt/asterfi/stt/whisper_stt.py
+    for m in base.en small.en; do /opt/asterfi/stt/whisper_stt.py --download $m; done
+    chmod -R a+rX /opt/asterfi/stt/models  # some cache files are written 0600; the service runs as asterisk
+  ) ||{ echo "WARNING: voicemail transcription didn't install; voicemails won't be transcribed."; rm -rf /opt/asterfi/stt/venv; }
 fi
 
 cp asterfi.service /etc/systemd/system/asterfi.service

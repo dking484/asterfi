@@ -11,7 +11,7 @@ const NEW = { first_name: '', last_name: '', company: '', email: '', phones: [{ 
 
 export const contactName = (c) => `${c.first_name} ${c.last_name}`.trim() || c.company;
 
-// Asks the web phone to place a call (it opens and explains if it's switched off).
+// Asks the web phone to place a call; with the web phone off, AsterFi rings the user's desk phone first.
 export const dialNumber = (number) => window.dispatchEvent(new CustomEvent('asterfi:dial', { detail: { number } }));
 
 // Looks up one of your contacts by phone number (last 10 digits), for labelling calls.

@@ -14,6 +14,7 @@ export const EVENT_TYPES = [
   { name: 'call.callback', description: 'A waiting caller asked a ring group to call them back' },
   { name: 'call.missed', description: 'A user missed a call (sent per user)' },
   { name: 'voicemail.new', description: 'A new voicemail was left' },
+  { name: 'voicemail.transcribed', description: "A voicemail's transcript is ready (or transcription failed)" },
   { name: 'ivr.keypress', description: 'A caller made a choice in a call flow, or passed a Notify block' },
   { name: 'phone.registered', description: 'A phone came online' },
   { name: 'phone.unregistered', description: 'A phone went offline' },

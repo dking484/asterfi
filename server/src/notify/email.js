@@ -142,6 +142,12 @@ export function layout(site, { title, heading, rows = [], note = '', cta = null,
 </td></tr></table></body></html>`;
 }
 const plain = (title, heading, rows, note = '') => `${title}\n\n${heading}\n\n${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n${note ? `\n${note}\n` : ''}`;
+// A voicemail's transcript, as a quoted block under the details (HTML) and as plain text.
+const transcriptHtml = (t) => (t ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px"><tr>
+      <td bgcolor="#f3f6fb" style="padding:12px 14px;background:#f3f6fb;border-left:3px solid #2f6bff;font-family:${FONT}">
+        <div style="color:#5b6472;font-size:13px;padding-bottom:4px">Transcript</div>
+        <div style="color:#1f2733;font-size:15px;line-height:1.5">${esc(t)}</div></td></tr></table>` : '');
+const transcriptText = (t) => (t ? `\nTranscript:\n${t}\n` : '');
 const callerLabel = (num, name) => (name && name !== num ? `${name} ${formatNumber(num)}` : formatNumber(num));
 
 // A caller missed this user and left a voicemail: ONE email covers both (no separate missed-call email).
@@ -163,7 +169,8 @@ export async function sendVoicemailEmail(user, vm, call = null) {
   const cta = site.url ? { url: `${site.url}/voicemail`, label: 'Listen to voicemail' } : null;
   await sendMail({
     kind: 'voicemail', to: user.email, subject: `Missed call + voicemail from ${caller}`, attachments,
-    html: layout(site, { title, heading, rows, note, cta }), text: plain(title, heading, rows, note),
+    html: layout(site, { title, heading, rows, note, cta, extraHtml: transcriptHtml(vm.transcript) }),
+    text: plain(title, heading, rows, note) + transcriptText(vm.transcript),
   });
 }
 
@@ -182,8 +189,8 @@ export async function sendGroupVoicemailEmail(group, recipients, vm) {
   const heading = `${group.name}: voicemail from ${caller}`;
   const note = `Nobody in ${group.name} answered, so the caller left a voicemail.${attachments.length ? ' The recording is attached.' : ''}`;
   const cta = site.url ? { url: `${site.url}/voicemail`, label: 'Listen to voicemail' } : null;
-  const html = layout(site, { title, heading, rows, note, cta });
-  const text = plain(title, heading, rows, note);
+  const html = layout(site, { title, heading, rows, note, cta, extraHtml: transcriptHtml(vm.transcript) });
+  const text = plain(title, heading, rows, note) + transcriptText(vm.transcript);
   // Sent one by one so members don't see each other's addresses.
   for (const to of recipients) await sendMail({ kind: 'voicemail', to, subject: `Missed call to ${group.name} + voicemail from ${caller}`, attachments, html, text });
 }

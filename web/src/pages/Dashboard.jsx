@@ -77,7 +77,7 @@ function CompanyDashboard({ me }) {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-head"><h2>Recent calls</h2><div className="spacer" /><Link to="/calls" className="small">View all</Link></div>
         {d.recent.length === 0 ? <Empty icon={PhoneOutgoing} title="No calls yet" /> : (
-          <CallTable rows={d.recent} />
+          <CallTable rows={d.recent} me={me} />
         )}
       </div>
     </>
@@ -160,7 +160,7 @@ function MyDashboard({ me }) {
 
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-head"><h2>My recent calls</h2><div className="spacer" /><Link to="/calls" className="small">View all</Link></div>
-        {d.recent.length === 0 ? <Empty icon={PhoneOutgoing} title="No calls yet" /> : <CallTable rows={d.recent} />}
+        {d.recent.length === 0 ? <Empty icon={PhoneOutgoing} title="No calls yet" /> : <CallTable rows={d.recent} me={me} />}
       </div>
     </>
   );

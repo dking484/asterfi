@@ -269,6 +269,19 @@ function renderDialplan({ users, groups, flows, numbers, routes, trunks, general
     'exten => s,1,ExecIf($["${ASTERFI_WHISPER}"!=""]?Playback(${ASTERFI_WHISPER}))',
     ' same => n,Return()',
     '',
+    // Click-to-call (clicktocall.js): the ;2 half of the originated Local channel rings the user's own phones,
+    // ignoring DND and forwarding since they asked for the call. Their phone shows the number being called.
+    '[asterfi-click]',
+    'exten => _X!,1,UserEvent(AsterFiClick,Extension: ${EXTEN},Number: ${ASTERFI_CLICKNUM})',
+    ' same => n,Set(CALLERID(num)=${ASTERFI_CLICKNUM})',
+    ' same => n,Set(CALLERID(name)=Calling ${ASTERFI_CLICKNUM})',
+    ' same => n,Set(DSTR=${PJSIP_DIAL_CONTACTS(${EXTEN})})',
+    ' same => n,Set(WSTR=${PJSIP_DIAL_CONTACTS(webrtc-${EXTEN})})',
+    ' same => n,Set(DSTR=${DSTR}${IF($["${DSTR}"!="" & "${WSTR}"!=""]?&)}${WSTR})',
+    ' same => n,GotoIf($["${DSTR}"=""]?none)',
+    ' same => n,Dial(${DSTR},${ASTERFI_CLICKSECS})',
+    ' same => n(none),Hangup()',
+    '',
     '[asterfi-vm]',
   );
   // Group mailboxes: the group's greeting (or a generic one), then record. Exact matches win over _X!.

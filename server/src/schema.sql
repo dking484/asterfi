@@ -269,3 +269,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS contacts_owner_coworker_idx ON contacts (owner
 
 -- v0.19: UniFi phones' Recents: which users have seen a missed call (clears the phone's badge).
 ALTER TABLE calls ADD COLUMN IF NOT EXISTS read_by text[] NOT NULL DEFAULT '{}';
+
+-- v0.20: voicemail transcripts (faster-whisper). Status: pending | done | failed; NULL = never transcribed.
+ALTER TABLE voicemails ADD COLUMN IF NOT EXISTS transcript text;
+ALTER TABLE voicemails ADD COLUMN IF NOT EXISTS transcript_status text;
