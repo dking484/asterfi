@@ -4,10 +4,11 @@ import { Plus, Trash2, ArrowUp, ArrowDown, ListPlus, Send, Server, Webhook, KeyR
 import { api, fmtWhen } from '../api.js';
 import { VoiceSelect, PreviewButton, loadTts, useTts } from '../components/Voices.jsx';
 import { FIELD_TYPES, useFieldDefs } from '../components/CustomFields.jsx';
+import SystemSettings from './SystemSettings.jsx';
 import { useData, useToast, useLiveEvents, Drawer, Confirm, Field, Toggle, Empty, CopyField, useForm, Switch, PasswordInput } from '../components/ui.jsx';
 
 // General first, the rest alphabetical.
-const TABS = [['general', 'General'], ['fields', 'Contact Fields'], ['email', 'Email'], ['webhooks', 'Webhooks & API']];
+const TABS = [['general', 'General'], ['fields', 'Contact Fields'], ['email', 'Email'], ['webhooks', 'Webhooks & API'], ['system', 'System']];
 const MOVED = ['routing', 'trunks', 'routes']; // now Call Routing > Trunks & Routes
 const PROMPTS = ['recordings']; // now only Call Flows > Audio Prompts
 const ZONES = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : ['America/New_York'];
@@ -15,15 +16,17 @@ const ZONES = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : ['Am
 export default function Settings() {
   const { tab = 'general' } = useParams();
   const nav = useNavigate();
+  const { data: update } = useData('/api/system/update');
   if (MOVED.includes(tab)) return <Navigate to="/trunks" replace />;
   if (PROMPTS.includes(tab)) return <Navigate to="/flows" replace />;
   return (
     <>
-      <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => nav(k === 'general' ? '/settings' : `/settings/${k}`)}>{l}</button>)}</div>
+      <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => nav(k === 'general' ? '/settings' : `/settings/${k}`)}>{l}{k === 'system' && update?.available && <span className="badge blue" style={{ marginLeft: 6 }} title="A new AsterFi release is available">Update</span>}</button>)}</div>
       {tab === 'general' && <General />}
       {tab === 'email' && <Email />}
       {tab === 'fields' && <ContactFields />}
       {tab === 'webhooks' && <Integrations />}
+      {tab === 'system' && <SystemSettings />}
     </>
   );
 }
@@ -114,7 +117,6 @@ function FieldDrawer({ field, onClose, onSave }) {
 // ---------------------------------------------------------------- general
 function General() {
   const { data } = useData('/api/settings/general');
-  const { data: info } = useData('/api/system/info');
   const { data: backups } = useData('/api/backups');
   const [f, set, setF] = useForm(null);
   const [restart, setRestart] = useState(false);
@@ -142,10 +144,6 @@ function General() {
       </div></div>
       <VoiceSettings />
       <TranscriptionSettings />
-      {info &&<div className="card" style={{ marginTop: 16 }}><div className="card-head"><h2>System</h2></div><div className="card-body small">
-        <div className="row"><div className="muted">Asterisk</div><div>{info.asterisk}</div></div>
-        <div className="row" style={{ marginTop: 6 }}><div className="muted">Manager connection</div><div>{info.amiConnected ? <span className="badge green">Connected</span> : <span className="badge red">Disconnected</span>}</div></div>
-      </div></div>}
       <div className="card" style={{ marginTop: 16 }}><div className="card-head"><h2>Backups</h2><div className="spacer" /><span className="muted small">Nightly at 02:30 server time · last 14 kept</span></div>
         {backups && backups.length === 0 ? <div className="card-body muted small">No backups yet. The first runs tonight.</div> : (
           <table className="t"><tbody>{(backups || []).map((b) => (

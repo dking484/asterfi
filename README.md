@@ -66,6 +66,8 @@ sudo ./install.sh
 
 Re-running the installer updates AsterFi in place. It keeps the database, settings, prompts, voicemail and certificate.
 
+**Settings > System** shows when a new release is out. It checks GitHub's API (`api.github.com`) every 6 hours and can be switched off there. The same tab shows the server's health, performance, storage and the version of every component.
+
 ### Ports
 
 | Port | Used for |
