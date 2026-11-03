@@ -1,6 +1,6 @@
 # UniFi Talk device protocol — reverse-engineered from the console's Talk app
 
-Source: the user's own UniFi console (192.0.2.1), app at `/usr/share/unifi-talk/app/server.js`
+Source: the user's own UniFi console, app at `/usr/share/unifi-talk/app/server.js`
 (Node 24, webpack-bundled; a copy is saved beside this file as `unifi-talk-server.js`).
 FreeSWITCH is the console's SIP/media backend (the `/data/unifi-talk` dir is group `freeswitch`).
 

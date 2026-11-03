@@ -93,7 +93,7 @@ Services: `asterfi`, `asterisk`, `postgresql`, `nginx`, `asterfi-backup.timer`. 
 ## Development
 
 - `server/`: Fastify API, Asterisk config generator, AMI call tracker, UniFi listener.
-- `web/`: React + Vite console. Use `npm run dev` for development and `npm run build` to produce `web/dist`.
+- `web/`: React + Vite console. Use `npm run dev` for development and `npm run build` to produce `web/dist`. The dev server proxies the API to the address in `web/.env.local` (`ASTERFI_DEV_SERVER=https://<your-asterfi-server>`).
 - `deploy/deploy.sh`: pushes `server/src` and a built `web/dist` to an existing server over SSH. It reads the server address and password from `deploy/local.env`; copy `deploy/local.env.example` to create it.
 - `docs/integration-guide.md`: REST API and webhooks.
 
