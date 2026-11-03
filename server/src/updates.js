@@ -1,6 +1,5 @@
 // Checks GitHub for a newer AsterFi release. The check is a single HTTPS request to api.github.com,
-// made at most every 6 hours (Settings > System can turn automatic checks off, and "Check now" forces one).
-import { getSetting } from './db.js';
+// made at most every 6 hours ("Check now" in Settings > System forces one).
 import { asterfiVersion } from './system.js';
 
 const REPO = process.env.ASTERFI_UPDATE_REPO || 'dking484/asterfi';
@@ -35,15 +34,14 @@ async function fetchLatest() {
 }
 
 export async function updateStatus({ force = false } = {}) {
-  const { auto } = await getSetting('updates');
   const age = last ? Date.now() - new Date(last.checkedAt).getTime() : Infinity;
-  if (force ? age > MIN_GAP_MS : auto !== false && age > EVERY_MS) {
+  if (age > (force ? MIN_GAP_MS : EVERY_MS)) {
     inFlight ||= fetchLatest().then((r) => { last = r; }).finally(() => { inFlight = null; });
     await inFlight;
   }
   const current = await asterfiVersion();
   return {
-    repo: REPO, current, auto: auto !== false, ...(last || { checkedAt: null, latest: null }),
+    repo: REPO, current, ...(last || { checkedAt: null, latest: null }),
     available: !!(last?.latest && isNewer(last.latest, current)),
   };
 }
