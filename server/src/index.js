@@ -8,7 +8,7 @@ import { rm } from 'node:fs/promises';
 import { config } from './config.js';
 import { migrate, q } from './db.js';
 import { Ami } from './ami.js';
-import { initGenerator, applyNow } from './asterisk/generate.js';
+import { initGenerator, applyNow, startTrunkWatch } from './asterisk/generate.js';
 import { handleAmiEvent, invalidateUserCache } from './calltracker.js';
 import { initVoicemail } from './voicemail.js';
 import { initWebhooks } from './notify/webhooks.js';
@@ -39,6 +39,7 @@ ami.on('event', async (e) => {
   }
 });
 initGenerator(ami);
+startTrunkWatch();
 ami.start();
 
 // Write config once AMI is up so the first reload takes effect.

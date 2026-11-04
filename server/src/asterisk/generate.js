@@ -1,6 +1,8 @@
 // Renders AsterFi's database into Asterisk config files and reloads Asterisk.
 import { writeFile, rename, mkdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import path from 'node:path';
 import { q, getSetting } from '../db.js';
 import { config } from '../config.js';
@@ -85,7 +87,24 @@ export function renderUsers(users) {
   return L.join('\n');
 }
 
-export function renderTrunks(trunks) {
+// Inbound match entries for a trunk: its host plus any extra IPs, hostnames or CIDRs.
+const trunkMatches = (t) => [t.host, ...String(t.match_ips || '').split(',')].map((s) => String(s || '').trim()).filter(Boolean);
+const isAddr = (m) => isIP(m) || /^[0-9a-f.:]+\/\d+$/i.test(m);
+
+// Trunk hostnames resolved to IPv4 addresses. If a lookup fails, the last good answer is kept.
+let resolvedHosts = {};
+async function resolveTrunkHosts(trunks) {
+  const names = [...new Set(trunks.filter((t) => t.enabled).flatMap(trunkMatches).filter((m) => !isAddr(m)))];
+  const out = {};
+  for (const name of names) {
+    out[name] = await lookup(name, { all: true, family: 4 })
+      .then((r) => [...new Set(r.map((a) => a.address))].sort())
+      .catch(() => resolvedHosts[name] || []);
+  }
+  return out;
+}
+
+export function renderTrunks(trunks, resolved = {}) {
   const L = [];
   for (const t of trunks.filter((x) => x.enabled)) {
     const n = `trunk-${t.id}`;
@@ -118,8 +137,17 @@ export function renderTrunks(trunks) {
     L.push(`from_domain=${confVal(t.from_domain || t.host)}`);
     if (t.from_user || t.username) L.push(`from_user=${confVal(t.from_user || t.username)}`);
     L.push(...extra('endpoint'), '');
-    const matches = [t.host, ...String(t.match_ips || '').split(',')].map((s) => s.trim()).filter(Boolean);
-    L.push(`[${n}]`, 'type=identify', `endpoint=${n}`, ...matches.map((m) => `match=${confVal(m)}`), ...extra('identify'), '');
+    // If a hostname won't resolve when Asterisk loads (DNS down during a restart), Asterisk drops the whole
+    // identify and every inbound call is rejected. So match by IP, including each hostname's addresses as of
+    // this write, and keep the hostnames in a separate identify that can fail on its own.
+    const entries = trunkMatches(t);
+    const ips = [...new Set(entries.flatMap((m) => (isAddr(m) ? [m] : resolved[m] || [])))];
+    const names = entries.filter((m) => !isAddr(m));
+    if (ips.length) L.push(`[${n}]`, 'type=identify', `endpoint=${n}`, ...ips.map((m) => `match=${confVal(m)}`), ...extra('identify'), '');
+    if (names.length) {
+      L.push(`[${ips.length ? `${n}-dns` : n}]`, 'type=identify', `endpoint=${n}`, ...names.map((m) => `match=${confVal(m)}`),
+        ...(ips.length ? [] : extra('identify')), '');
+    }
   }
   return L.join('\n');
 }
@@ -519,7 +547,8 @@ export async function applyNow({ transports = false } = {}) {
   await mkdir(dir, { recursive: true });
   if (transports) await atomicWrite(path.join(dir, 'pjsip_transports.conf'), renderTransports(data.general));
   await atomicWrite(path.join(dir, 'pjsip_users.conf'), renderUsers(data.users));
-  await atomicWrite(path.join(dir, 'pjsip_trunks.conf'), renderTrunks(data.trunks));
+  resolvedHosts = await resolveTrunkHosts(data.trunks);
+  await atomicWrite(path.join(dir, 'pjsip_trunks.conf'), renderTrunks(data.trunks, resolvedHosts));
   await atomicWrite(path.join(dir, 'extensions.conf'), renderDialplan(data));
   await atomicWrite(path.join(dir, 'voicemail.conf'), renderVoicemail(data.users, data.general, data.groups));
   await ensureBlank();
@@ -533,6 +562,33 @@ export async function applyNow({ transports = false } = {}) {
     await ami.command('dialplan reload');
     await ami.command('voicemail reload');
   }
+}
+
+// Every few minutes: rewrite the trunks if a provider's addresses changed, and reload PJSIP if Asterisk
+// is missing a trunk's identify (it drops one that failed to load, e.g. after a restart with DNS down).
+let watching = false;
+export function startTrunkWatch(everyMs = 5 * 60 * 1000) {
+  if (watching) return;
+  watching = true;
+  setInterval(async () => {
+    if (!ami?.connected) return;
+    try {
+      const trunks = (await q('SELECT * FROM trunks ORDER BY id')).filter((t) => t.enabled && trunkMatches(t).length);
+      const now = await resolveTrunkHosts(trunks);
+      if (Object.keys(now).some((h) => now[h].length && String(now[h]) !== String(resolvedHosts[h] || []))) {
+        console.log('Trunk addresses changed; rewriting the config');
+        return await applyNow();
+      }
+      const out = await ami.command('pjsip show identifies');
+      const missing = trunks.filter((t) => !new RegExp(`Identify:\\s+trunk-${t.id}/`).test(out));
+      if (missing.length) {
+        console.log(`Asterisk is missing the inbound match for ${missing.map((t) => `trunk-${t.id}`).join(', ')}; reloading PJSIP`);
+        await ami.command('module reload res_pjsip.so');
+      }
+    } catch (e) {
+      console.error('trunk watch:', e.message);
+    }
+  }, everyMs).unref();
 }
 
 export { idSafe };
