@@ -125,6 +125,15 @@ if [ "${SKIP_STT:-0}" != 1 ]; then
 fi
 
 cp asterfi.service /etc/systemd/system/asterfi.service
+# Settings > System: let the service account read the logs (journal and /var/log) and start or restart
+# AsterFi's services, and nothing else.
+usermod -aG systemd-journal,adm asterisk
+SC=$(command -v systemctl)
+{ echo "# Written by the AsterFi installer: Settings > System can start and restart these services."
+  for u in asterisk asterfi postgresql nginx; do echo "asterisk ALL=(root) NOPASSWD: $SC start $u, $SC restart $u"; done
+} > /tmp/asterfi.sudoers
+visudo -cqf /tmp/asterfi.sudoers && install -m 440 /tmp/asterfi.sudoers /etc/sudoers.d/asterfi || echo "WARNING: couldn't add the service-restart permission."
+rm -f /tmp/asterfi.sudoers
 mkdir -p /opt/asterfi/bin && install -m 755 backup.sh /opt/asterfi/bin/backup.sh
 cp asterfi-backup.service asterfi-backup.timer /etc/systemd/system/
 systemctl daemon-reload

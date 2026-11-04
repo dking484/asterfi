@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, ExternalLink, CheckCircle2, ArrowUpCircle, AlertTriangle, Cpu, MemoryStick, HardDrive } from 'lucide-react';
 import { api, fmtWhen } from '../api.js';
-import { useData, useToast } from '../components/ui.jsx';
+import { useData, useToast, Seg } from '../components/ui.jsx';
+import { Services, Logs, Console } from './SystemTools.jsx';
 
 /* global __WEB_VERSIONS__ */
 const WEB_VERSIONS = typeof __WEB_VERSIONS__ === 'object' ? __WEB_VERSIONS__ : {};
@@ -23,11 +24,29 @@ const pct = (used, total) => (total ? Math.round((100 * used) / total) : 0);
 // Meter colour only signals trouble; the number beside it always says how full.
 const level = (p) => (p >= 90 ? 'red' : p >= 75 ? 'amber' : 'ok');
 
+const VIEWS = [{ value: 'overview', label: 'Overview' }, { value: 'services', label: 'Services' }, { value: 'logs', label: 'Logs' }, { value: 'console', label: 'Asterisk console' }];
+const VIEW_KEY = 'asterfi.system.view';
+
 export default function SystemSettings() {
+  const [view, setViewState] = useState(() => { try { return localStorage.getItem(VIEW_KEY) || 'overview'; } catch { return 'overview'; } });
+  const [logSource, setLogSource] = useState('asterisk');
+  const setView = (v) => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* private mode */ } };
+  return (
+    <div style={{ maxWidth: view === 'overview' ? 980 : 1200 }}>
+      <Seg value={view} onChange={setView} options={VIEWS} />
+      {view === 'overview' && <Overview />}
+      {view === 'services' && <Services onViewLog={(id) => { setLogSource(id); setView('logs'); }} />}
+      {view === 'logs' && <Logs source={logSource} setSource={setLogSource} />}
+      {view === 'console' && <Console />}
+    </div>
+  );
+}
+
+function Overview() {
   const { data, reload } = useData('/api/system/overview');
   useEffect(() => { const t = setInterval(reload, 10000); return () => clearInterval(t); }, [reload]);
   return (
-    <div style={{ maxWidth: 980 }}>
+    <div style={{ marginTop: 16 }}>
       <UpdateCard />
       {data && <>
         <Health d={data} />

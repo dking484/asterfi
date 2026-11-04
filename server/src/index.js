@@ -20,6 +20,7 @@ import { versions } from './system.js';
 import { annotate as annotateCompat } from './compat.js';
 import v1Routes from './routes/v1.js';
 import phonebookRoutes from './routes/phonebook.js';
+import { initConsole } from './sysadmin.js';
 
 await migrate();
 invalidateUserCache();
@@ -55,6 +56,7 @@ ami.on('connected', () => {
 });
 
 initVoicemail(ami);
+initConsole(ami);
 initWebhooks();
 initUnifi(ami);
 

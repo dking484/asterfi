@@ -27,6 +27,7 @@ import { createReadStream } from 'node:fs';
 import { CONTACT_QUERY } from '../directory.js';
 import { getForward, setForward } from '../forward.js';
 import { clickToCall } from '../clicktocall.js';
+import { serviceStatus, controlService, LOG_SOURCES, readLog, followLog, cli, watchConsole, DISRUPTIVE } from '../sysadmin.js';
 
 class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -1050,6 +1051,34 @@ export default async function adminRoutes(app, { ami }) {
   // Components outside the versions this release supports, for the dashboard warning and the System tab badge.
   app.get('/api/system/compat', async () => ({ issues: annotateCompat(await sysVersions(ami, q)) }));
   app.get('/api/system/update', async (req) => updateStatus({ force: req.query.check === '1' }));
+
+  // Services, logs and the Asterisk console.
+  app.get('/api/system/services', async () => ({ services: await serviceStatus(), activeCalls: activeCalls().length }));
+  app.post('/api/system/services/:unit/:action', async (req) => {
+    req.log.info({ user: req.user.id, unit: req.params.unit, action: req.params.action }, 'service control');
+    return controlService(req.params.unit, req.params.action, ami);
+  });
+  app.get('/api/system/logs', async () => LOG_SOURCES.map(({ id, name }) => ({ id, name })));
+  app.get('/api/system/logs/:id', async (req) => readLog(req.params.id, { lines: req.query.lines, filter: String(req.query.filter || '') }));
+  // Server-sent events: one { line } message per new log line.
+  const sse = async (req, reply, start) => {
+    reply.hijack();
+    reply.raw.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+    const send = (obj) => reply.raw.write(`data: ${JSON.stringify(obj)}\n\n`);
+    let stop = null;
+    const ping = setInterval(() => reply.raw.write(': ping\n\n'), 25000);
+    req.raw.on('close', () => { clearInterval(ping); stop?.(); stop = null; });
+    try { stop = await start((line) => send({ line })); } catch (e) { send({ error: e.message }); reply.raw.end(); }
+    if (req.raw.destroyed) { stop?.(); stop = null; }
+  };
+  app.get('/api/system/logs/:id/stream', (req, reply) => sse(req, reply, (onLine) => followLog(req.params.id, onLine)));
+  app.get('/api/system/console/stream', (req, reply) => sse(req, reply, watchConsole));
+  app.post('/api/system/cli', async (req) => {
+    const command = String(req.body?.command || '');
+    if (DISRUPTIVE.test(command) && !req.body?.confirmed) return { confirm: true };
+    req.log.info({ user: req.user.id, command }, 'asterisk cli');
+    return cli(ami, command);
+  });
   // Nightly backups written by asterfi-backup.timer.
   const BACKUP_DIR = '/var/backups/asterfi';
   app.get('/api/backups', async () => {

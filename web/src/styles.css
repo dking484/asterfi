@@ -411,3 +411,13 @@ body { font-size: 14.5px; }
 .hchart-tip { position: absolute; top: 22px; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 12px; display: flex; gap: 8px; white-space: nowrap; pointer-events: none; box-shadow: 0 2px 8px rgba(0, 0, 0, .12); }
 .t.versions .group-row td { background: var(--panel-2); font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding-top: 8px; padding-bottom: 8px; }
 .t.versions td.mono { white-space: nowrap; }
+
+/* Settings > System: logs and the Asterisk console */
+.logview { background: #0f1115; color: #d6d9de; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.5; padding: 10px 12px; height: 520px; overflow: auto; white-space: pre-wrap; word-break: break-word; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.logview .err { color: #ff7b72; }
+.logview .warn { color: #e3b341; }
+.logview .dim { color: #8b929c; }
+.logview .cmd { color: #79c0ff; font-weight: 600; margin-top: 6px; }
+.logview .out { color: #e6edf3; }
+.cli-input { display: flex; align-items: center; gap: 8px; padding: 10px 16px; }
+.cli-input input { flex: 1; }
