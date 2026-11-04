@@ -6,6 +6,9 @@ import { config } from './config.js';
 pg.types.setTypeParser(20, (v) => Number(v));
 
 export const pool = new pg.Pool({ connectionString: config.databaseUrl, max: 10 });
+// An idle connection that drops (PostgreSQL restarting) is dropped from the pool and replaced on next use;
+// without a listener the error would end the process.
+pool.on('error', (e) => console.error('database connection lost:', e.message));
 
 export async function q(text, params) {
   const r = await pool.query(text, params);
