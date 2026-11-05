@@ -1,7 +1,7 @@
 // Settings > System: updates, health, performance (live + 24-hour charts), storage and software versions.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, ExternalLink, CheckCircle2, ArrowUpCircle, AlertTriangle, Cpu, MemoryStick, HardDrive } from 'lucide-react';
-import { api, fmtWhen } from '../api.js';
+import { api, fmtWhen, fmtTime, fmtDate } from '../api.js';
 import { useData, useToast, Seg } from '../components/ui.jsx';
 import { Services, Logs, Console } from './SystemTools.jsx';
 
@@ -80,7 +80,7 @@ function UpdateCard() {
         {u.available ? (
           <div className="alert info" style={{ display: 'block' }}>
             <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}><ArrowUpCircle size={16} />AsterFi {u.latest.replace(/^v/, '')} is available</div>
-            <div style={{ marginTop: 4 }}>You have {u.current}.{u.publishedAt && ` Released ${new Date(u.publishedAt).toLocaleDateString()}.`} {u.url && <a href={u.url} target="_blank" rel="noopener">What's new <ExternalLink size={12} style={{ verticalAlign: -1 }} /></a>}</div>
+            <div style={{ marginTop: 4 }}>You have {u.current}.{u.publishedAt && ` Released ${fmtDate(u.publishedAt)}.`} {u.url && <a href={u.url} target="_blank" rel="noopener">What's new <ExternalLink size={12} style={{ verticalAlign: -1 }} /></a>}</div>
           </div>
         ) : u.latest ? (
           <div className="update-ok"><CheckCircle2 size={18} /><div><b>AsterFi {u.current} is up to date.</b><div className="muted small">The latest release is {u.latest}.</div></div></div>
@@ -199,7 +199,7 @@ function HistoryChart({ title, points, max, fmt }) {
     for (const p of points) if (Math.abs(p.at - at) < Math.abs(best.at - at)) best = p;
     setHover(best);
   }, [points, t0, t1, pw]);
-  const time = (at) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const time = fmtTime;
   const last = points[points.length - 1];
   return (
     <div className="hchart" ref={box}>

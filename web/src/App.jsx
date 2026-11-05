@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users as UsersIcon, UsersRound, Phone, Hash, Workflow, History, Voicemail as VmIcon, Settings as SettingsIcon, LogOut, Menu, UserCircle, BookUser, Server } from 'lucide-react';
-import { api } from './api.js';
+import { api, setTimeZone } from './api.js';
 import { DirectoryProvider } from './components/Destination.jsx';
 import { useLiveEvents } from './components/ui.jsx';
 import { Login, Setup } from './pages/Auth.jsx';
@@ -49,6 +49,7 @@ export default function App() {
       if (s.needsSetup) return setState({ setup: true, siteName: s.siteName });
       const me = await api.get('/api/me').catch(() => null);
       if (me?.theme) applyTheme(me.theme);
+      setTimeZone(me?.timeZone);
       setState({ me, siteName: s.siteName });
     } catch {
       setState({ error: true });

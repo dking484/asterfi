@@ -1,7 +1,7 @@
 // API used by the AsterFi web UI. Everything requires a signed-in user except setup/login.
 // Users with role "user" only reach the self-service routes in USER_ROUTES; the rest need "admin".
 import { randomBytes } from 'node:crypto';
-import { q, one, getSetting, setSetting } from '../db.js';
+import { q, one, getSetting, setSetting, pbxTimeZone, todayStart } from '../db.js';
 import { hashPassword, verifyPassword, createSession, sessionUser, findLogin, SESSION_COOKIE, newApiKey, randomSecret, sha256 } from '../auth.js';
 import { scheduleApply, applyNow } from '../asterisk/generate.js';
 import { normalizeNumber, extSafe } from '../asterisk/dest.js';
@@ -185,7 +185,8 @@ export default async function adminRoutes(app, { ami }) {
     return { ok: true };
   });
 
-  app.get('/api/me', async (req) => ({ ...req.user, name: `${req.user.first_name} ${req.user.last_name}`.trim() }));
+  // timeZone: the PBX's, so the console shows times and "today" in it wherever the viewer is.
+  app.get('/api/me', async (req) => ({ ...req.user, name: `${req.user.first_name} ${req.user.last_name}`.trim(), timeZone: await pbxTimeZone() }));
 
   // --- my account (any signed-in user) ---------------------------------
   const MY_FIELDS = ['email', 'vm_pin', 'notify_voicemail', 'notify_missed', 'vm_attach_audio', 'ring_seconds'];
@@ -253,6 +254,7 @@ export default async function adminRoutes(app, { ami }) {
 
   // --- dashboard & live ---------------------------------------------------
   app.get('/api/dashboard', async () => {
+    const tz = await pbxTimeZone();
     const [counts, today, recent, contacts, trunks] = await Promise.all([
       one(`SELECT (SELECT count(*) FROM users)::int users, (SELECT count(*) FROM ring_groups)::int groups,
                   (SELECT count(*) FROM call_flows)::int flows, (SELECT count(*) FROM numbers)::int numbers`),
@@ -260,7 +262,7 @@ export default async function adminRoutes(app, { ami }) {
                   count(*) FILTER (WHERE status IN ('missed','abandoned','busy'))::int missed,
                   count(*) FILTER (WHERE status='voicemail')::int voicemail,
                   coalesce(sum(talk_seconds),0)::int talk_seconds
-           FROM calls WHERE started_at >= date_trunc('day', now())`),
+           FROM calls WHERE started_at >= ${todayStart(1)}`, [tz]),
       q('SELECT * FROM calls ORDER BY started_at DESC LIMIT 8'),
       phoneContacts().catch(() => []),
       trunkStatus().catch(() => []),
@@ -275,12 +277,13 @@ export default async function adminRoutes(app, { ami }) {
   // (their own and their groups'), and their own phones.
   app.get('/api/my/dashboard', async (req) => {
     const x = req.user.extension;
+    const tz = await pbxTimeZone();
     const mine = '(answered_by=$1 OR from_num=$1 OR to_num=$1 OR $1 = ANY(missed_exts))';
     const [today, recent, contacts, boxes] = await Promise.all([
       one(`SELECT count(*)::int total, count(*) FILTER (WHERE status='answered' AND (answered_by=$1 OR from_num=$1))::int answered,
                   count(*) FILTER (WHERE $1 = ANY(missed_exts))::int missed,
                   coalesce(sum(talk_seconds) FILTER (WHERE answered_by=$1 OR from_num=$1),0)::int talk_seconds
-           FROM calls WHERE started_at >= date_trunc('day', now()) AND ${mine}`, [x]),
+           FROM calls WHERE started_at >= ${todayStart(2)} AND ${mine}`, [x, tz]),
       q(`SELECT * FROM calls WHERE ${mine} ORDER BY started_at DESC LIMIT 8`, [x]),
       phoneContacts().catch(() => []),
       myBoxes(req),
@@ -1032,7 +1035,7 @@ export default async function adminRoutes(app, { ami }) {
       sysHost(), sysPerformance(), sysStorage(q, RECORDINGS),
       ami.command('core show uptime seconds').catch(() => ''),
       phoneContacts().catch(() => []), trunkStatus().catch(() => []),
-      one(`SELECT count(*)::int today, (SELECT count(*) FROM calls)::bigint total FROM calls WHERE started_at >= date_trunc('day', now())`),
+      pbxTimeZone().then((tz) => one(`SELECT count(*)::int today, (SELECT count(*) FROM calls)::bigint total FROM calls WHERE started_at >= ${todayStart(1)}`, [tz])),
     ]);
     return {
       host: { ...h, asteriskUptime: Number((/System uptime: (\d+)/.exec(uptime) || [])[1]) || null, amiConnected: ami.connected },

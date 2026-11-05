@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2, ArrowUp, ArrowDown, ListPlus, Send, Server, Webhook, KeyRound, RotateCw, CheckCircle2, XCircle, Clock, Mail, Route } from 'lucide-react';
-import { api, fmtWhen } from '../api.js';
+import { api, fmtWhen, setTimeZone } from '../api.js';
 import { VoiceSelect, PreviewButton, loadTts, useTts } from '../components/Voices.jsx';
 import { FIELD_TYPES, useFieldDefs } from '../components/CustomFields.jsx';
 import SystemSettings from './SystemSettings.jsx';
@@ -128,6 +128,7 @@ function General() {
     try {
       const r = await api.put('/api/settings/general', f);
       toast('Settings saved');
+      setTimeZone(f.timezone);
       if (r.restartRequired) setRestart(true);
     } catch (e) { toast(e.message, 'error'); }
   };
@@ -136,7 +137,7 @@ function General() {
       {restart && <div className="alert warn" style={{ alignItems: 'center' }}><span style={{ flex: 1 }}>Network changes take effect after Asterisk restarts. Active calls will drop.</span><button className="btn sm" onClick={async () => { await api.post('/api/system/restart-asterisk'); setRestart(false); toast('Asterisk is restarting'); }}>Restart now</button></div>}
       <div className="card"><div className="card-body">
         <Field label="System name"><input type="text" value={f.siteName} onChange={set('siteName')} /></Field>
-        <Field label="Time zone" hint="Used for business hours in call flows and for email timestamps."><select value={f.timezone} onChange={set('timezone')}>{ZONES.map((z) => <option key={z}>{z}</option>)}</select></Field>
+        <Field label="Time zone" hint="Used for business hours in call flows, for statistics such as calls today, and for every time shown in the console and in emails."><select value={f.timezone} onChange={set('timezone')}>{ZONES.map((z) => <option key={z}>{z}</option>)}</select></Field>
         <Field label="Web address" hint="Used for links in notification emails, e.g. https://phones.example.com"><input type="url" value={f.publicUrl || ''} onChange={set('publicUrl')} placeholder={window.location.origin} /></Field>
         <div className="section-title">Network</div>
         <Field label="Public IP address" hint="Only needed if your SIP trunk reaches this server through NAT."><input type="text" value={f.externalAddress || ''} onChange={set('externalAddress')} placeholder="203.0.113.10" /></Field>

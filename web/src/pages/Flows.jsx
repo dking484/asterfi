@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, Handle, Position, addEdge, applyNodeChanges, applyEdgeChanges, useReactFlow, useStore, MarkerType, BaseEdge, getSmoothStepPath } from '@xyflow/react';
 import { routeWires, decorate, pathFromPoints } from '../components/wireRouter.js';
 import { Plus, Pencil, Workflow, PhoneIncoming, Volume2, Grid3x3, Clock, Webhook, Tag, User, UsersRound, Voicemail, PhoneForwarded, PhoneOff, ArrowLeft, Save, Trash2, Mic, Upload, Type, Play, AlertTriangle, X, BookUser, Disc, Megaphone } from 'lucide-react';
-import { api, fullName, formatNumber, fmtWhen } from '../api.js';
+import { api, fullName, formatNumber, fmtWhen, dayKey } from '../api.js';
 import { useData, useToast, Drawer, Confirm, Field, Toggle, Empty, Switch } from '../components/ui.jsx';
 import { useDirectory, TargetSelect } from '../components/Destination.jsx';
 import { VoiceSelect, PreviewButton } from '../components/Voices.jsx';
@@ -415,7 +415,7 @@ function HoursEditor({ d, onChange }) {
           <button className="btn ghost sm icon" style={{ flex: '0 0 auto' }} onClick={() => onChange({ holidays: hol.filter((_, j) => j !== i) })}><Trash2 size={14} /></button>
         </div>
       ))}
-      <button className="btn sm" onClick={() => onChange({ holidays: [...hol, { date: new Date().toISOString().slice(0, 10), name: '' }] })}><Plus size={13} />Add holiday</button>
+      <button className="btn sm" onClick={() => onChange({ holidays: [...hol, { date: dayKey(), name: '' }] })}><Plus size={13} />Add holiday</button>
       <p className="muted small">Holidays repeat on the same date every year. Times use the system time zone.</p>
     </>
   );

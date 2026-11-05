@@ -62,6 +62,15 @@ export async function getSetting(key) {
   return { ...(DEFAULT_SETTINGS[key] || {}), ...(row?.value || {}) };
 }
 
+// The PBX's time zone (Settings > General), falling back to the server's own. Statistics and "today" use it.
+const validZone = (z) => { try { return z && Intl.DateTimeFormat('en-US', { timeZone: z }) && z; } catch { return null; } };
+export const serverZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+export async function pbxTimeZone() {
+  return validZone((await getSetting('general')).timezone) || serverZone();
+}
+// SQL for the instant local midnight began today in the time zone bound to parameter $n.
+export const todayStart = (n) => `(date_trunc('day', now() AT TIME ZONE $${n}) AT TIME ZONE $${n})`;
+
 export async function setSetting(key, value) {
   await pool.query(
     'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
