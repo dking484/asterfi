@@ -190,7 +190,8 @@ table.t { width: 100%; border-collapse: collapse; }
 .stat .l { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .stat .v { font-size: 26px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-@media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
+.grid-2.wide-first { grid-template-columns: 3fr 1fr; }
+@media (max-width: 1100px) { .grid-2, .grid-2.wide-first { grid-template-columns: 1fr; } }
 
 /* ---- drawer (UniFi-style side panel) ---- */
 .drawer-backdrop { position: fixed; inset: 0; background: rgba(15, 18, 22, .32); z-index: 80; animation: fade .15s; }
@@ -421,3 +422,5 @@ body { font-size: 14.5px; }
 .logview .out { color: #e6edf3; }
 .cli-input { display: flex; align-items: center; gap: 8px; padding: 10px 16px; }
 .cli-input input { flex: 1; }
+
+.nowrap { white-space: nowrap; }

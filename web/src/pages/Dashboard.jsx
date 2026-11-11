@@ -55,19 +55,12 @@ function CompanyDashboard({ me }) {
           sub={mine.detail || (me ? `Ext. ${me.extension}` : '')} to="/account" />
       </div>
 
-      <div className="grid-2">
+      <div className="grid-2 wide-first">
         <div className="card">
           <div className="card-head"><h2>Active calls</h2><span className="badge blue">{d.active.length}</span></div>
           {d.active.length === 0 ? <Empty icon={ArrowRightLeft} title="No active calls" /> : (
             <table className="t"><tbody>
-              {d.active.map((c) => (
-                <tr key={c.id}>
-                  <td><CallIcon c={c} /></td>
-                  <td><div>{c.fromName || formatNumber(c.from)}</div><div className="muted small">to {partyLabel(c.answeredBy || c.to, dir)}</div></td>
-                  <td><span className={`badge ${c.state === 'talking' ? 'green' : 'amber'}`}>{c.state === 'talking' ? 'Talking' : 'Ringing'}</span></td>
-                  <td className="num muted">{fmtDuration((Date.now() - new Date(c.answeredAt || c.startedAt)) / 1000)}</td>
-                </tr>
-              ))}
+              {d.active.map((c) => <ActiveCallRow key={c.id} c={c} dir={dir} />)}
             </tbody></table>
           )}
         </div>
@@ -91,6 +84,20 @@ function CompanyDashboard({ me }) {
         )}
       </div>
     </>
+  );
+}
+
+// A call in progress: the caller's number (with their caller ID name, e.g. a call flow's tag, under it),
+// who it's for or who has it, its state and how long it's been going.
+function ActiveCallRow({ c, dir }) {
+  return (
+    <tr>
+      <td><CallIcon c={c} /></td>
+      <td className="nowrap"><div>{partyLabel(c.from, dir)}</div>{c.fromName && <div className="muted small">{c.fromName}</div>}</td>
+      <td><span className="muted">to</span> {partyLabel(c.answeredBy || c.to, dir)}</td>
+      <td><span className={`badge ${c.state === 'talking' ? 'green' : 'amber'}`}>{c.state === 'talking' ? 'Talking' : 'Ringing'}</span></td>
+      <td className="num muted">{fmtDuration((Date.now() - new Date(c.answeredAt || c.startedAt)) / 1000)}</td>
+    </tr>
   );
 }
 
@@ -123,14 +130,7 @@ function MyDashboard({ me }) {
           <div className="card-head"><h2>My active calls</h2><span className="badge blue">{d.active.length}</span></div>
           {d.active.length === 0 ? <Empty icon={ArrowRightLeft} title="No active calls" /> : (
             <table className="t"><tbody>
-              {d.active.map((c) => (
-                <tr key={c.id}>
-                  <td><CallIcon c={c} /></td>
-                  <td><div>{c.fromName || partyLabel(c.from, dir)}</div><div className="muted small">to {partyLabel(c.answeredBy || c.to, dir)}</div></td>
-                  <td><span className={`badge ${c.state === 'talking' ? 'green' : 'amber'}`}>{c.state === 'talking' ? 'Talking' : 'Ringing'}</span></td>
-                  <td className="num muted">{fmtDuration((Date.now() - new Date(c.answeredAt || c.startedAt)) / 1000)}</td>
-                </tr>
-              ))}
+              {d.active.map((c) => <ActiveCallRow key={c.id} c={c} dir={dir} />)}
             </tbody></table>
           )}
         </div>
