@@ -191,6 +191,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login timestamptz;
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (lower(email)) WHERE email IS NOT NULL;
 ALTER TABLE trunks ADD COLUMN IF NOT EXISTS custom jsonb NOT NULL DEFAULT '[]';
+-- A route's own caller ID; with cid_override it's used even for users who have their own (e.g. dial 9 for
+-- the main number, 8 for the service line).
+ALTER TABLE outbound_routes ADD COLUMN IF NOT EXISTS caller_id text NOT NULL DEFAULT '';
+ALTER TABLE outbound_routes ADD COLUMN IF NOT EXISTS cid_override boolean NOT NULL DEFAULT false;
 ALTER TABLE unifi_devices ADD COLUMN IF NOT EXISTS ignored boolean NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS user_sessions (

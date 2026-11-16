@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2, ArrowUp, ArrowDown, ListPlus, Send, Server, Webhook, KeyRound, RotateCw, CheckCircle2, XCircle, Clock, Mail, Route } from 'lucide-react';
-import { api, fmtWhen, setTimeZone } from '../api.js';
+import { api, fmtWhen, setTimeZone, formatNumber } from '../api.js';
 import { VoiceSelect, PreviewButton, loadTts, useTts } from '../components/Voices.jsx';
 import { FIELD_TYPES, useFieldDefs } from '../components/CustomFields.jsx';
 import SystemSettings from './SystemSettings.jsx';
@@ -406,15 +406,16 @@ function Routes() {
   const tname = (id) => trunks?.find((t) => t.id === id)?.name || `#${id}`;
   return (
     <>
-      <div className="toolbar"><div className="muted">Which trunk handles each kind of outside call. Routes are tried in priority order.</div><div className="spacer" /><button className="btn primary" onClick={() => setEditing({ name: '', priority: 10, patterns: [], trunk_ids: [], strip: 0, prepend: '' })}><Plus size={16} />Add Route</button></div>
+      <div className="toolbar"><div className="muted">Which trunk handles each kind of outside call. Routes are tried in priority order.</div><div className="spacer" /><button className="btn primary" onClick={() => setEditing({ name: '', priority: 10, patterns: [], trunk_ids: [], strip: 0, prepend: '', caller_id: '', cid_override: true })}><Plus size={16} />Add Route</button></div>
       <div className="card">
         {data && data.length === 0 ? <Empty icon={Route} title="No outbound routes" text="A default route is created when you add your first trunk." /> : (
-          <table className="t"><thead><tr><th>Priority</th><th>Name</th><th>Dial patterns</th><th>Trunks</th></tr></thead>
+          <table className="t"><thead><tr><th>Priority</th><th>Name</th><th>Dial patterns</th><th>Trunks</th><th>Caller ID</th></tr></thead>
             <tbody>{(data || []).map((r) => (
               <tr key={r.id} className="clickable" onClick={() => setEditing(r)}>
                 <td className="num">{r.priority}</td><td style={{ fontWeight: 500 }}>{r.name}</td>
                 <td><div className="chips">{r.patterns.map((p) => <span key={p} className="chip mono" style={{ paddingRight: 10 }}>{p}</span>)}</div></td>
                 <td>{r.trunk_ids.length ? <span className="muted">{r.trunk_ids.map(tname).join(' → ')}</span> : <span className="badge red">No trunk: calls on this route will fail</span>}</td>
+                <td className="nowrap">{r.caller_id ? <>{formatNumber(r.caller_id)}<div className="muted small">{r.cid_override ? 'Every call' : 'If the user has none'}</div></> : <span className="muted">—</span>}</td>
               </tr>
             ))}</tbody></table>
         )}
@@ -425,13 +426,13 @@ function Routes() {
 }
 function RouteDrawer({ route, trunks, onClose, onSaved }) {
   const isNew = !route.id;
-  const [f, set, setF] = useForm({ ...route, patternsText: route.patterns.join('\n') });
+  const [f, set, setF] = useForm({ ...route, caller_id: route.caller_id || '', cid_override: route.cid_override ?? true, patternsText: route.patterns.join('\n') });
   const [err, setErr] = useState('');
   const [confirm, setConfirm] = useState(false);
   const save = async () => {
     setErr('');
     try {
-      const body = { name: f.name, priority: f.priority, patterns: f.patternsText.split(/[\s,]+/).filter(Boolean), trunk_ids: f.trunk_ids, strip: f.strip, prepend: f.prepend };
+      const body = { name: f.name, priority: f.priority, patterns: f.patternsText.split(/[\s,]+/).filter(Boolean), trunk_ids: f.trunk_ids, strip: f.strip, prepend: f.prepend, caller_id: f.caller_id, cid_override: !!f.caller_id && f.cid_override };
       if (isNew) await api.post('/api/routes', body); else await api.put(`/api/routes/${route.id}`, body);
       onSaved();
     } catch (e) { setErr(e.message); }
@@ -458,6 +459,12 @@ function RouteDrawer({ route, trunks, onClose, onSaved }) {
         <Field label="Remove leading digits"><input type="number" min="0" value={f.strip} onChange={set('strip')} /></Field>
         <Field label="Add prefix"><input type="text" value={f.prepend} onChange={set('prepend')} /></Field>
       </div>
+      <Field label="Outbound caller ID" hint="The number people see for calls on this route. Blank uses each user's caller ID, then the trunk's default.">
+        <input type="text" value={f.caller_id} onChange={set('caller_id')} placeholder="(860) 555-0100" />
+      </Field>
+      {f.caller_id.replace(/\D/g, '') && <Toggle title="Use it for every call on this route" checked={f.cid_override} onChange={set('cid_override')}
+        description={f.cid_override ? 'Even users with their own caller ID send this number. Use this for dial prefixes, e.g. 9 for the main line and 8 for the service line.' : "Only for users who don't have their own caller ID."} />}
+      <div className="muted small" style={{ marginTop: 4 }}>To use a dial prefix, add patterns that start with it (for example <span className="mono">_9NXXNXXXXXX</span> and <span className="mono">_91NXXNXXXXXX</span>), set <b>Remove leading digits</b> to 1 so the prefix isn't sent to the carrier, and set the caller ID above.</div>
       {confirm && <Confirm title="Delete route?" message="Calls matching these patterns won't go out." onConfirm={async () => { await api.del(`/api/routes/${route.id}`); onSaved(); }} onCancel={() => setConfirm(false)} />}
     </Drawer>
   );

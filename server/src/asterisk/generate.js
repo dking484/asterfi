@@ -404,11 +404,14 @@ function renderDialplan({ users, groups, flows, numbers, routes, trunks, general
     push(`[asterfi-route-${r.id}]`);
     push(`exten => s,1,Set(NUM=${digits(r.prepend)}\${ARG1:${strip}})`);
     push(' same => n,UserEvent(AsterFiOutbound,Number: ${NUM})');
+    // Caller ID: the route's when it overrides; otherwise the user's own, then the route's, then the trunk's.
+    const routeCid = digits(r.caller_id);
     for (const tid of r.trunk_ids || []) {
       const t = trunkById.get(Number(tid));
       if (!t) continue;
-      const cid = digits(t.caller_id);
-      push(` same => n,Set(CALLERID(num)=\${IF($["\${ASTERFI_OUTCID}"!=""]?\${ASTERFI_OUTCID}:${cid || '${CALLERID(num)}'})})`);
+      const cid = routeCid || digits(t.caller_id);
+      if (routeCid && r.cid_override) push(` same => n,Set(CALLERID(num)=${routeCid})`);
+      else push(` same => n,Set(CALLERID(num)=\${IF($["\${ASTERFI_OUTCID}"!=""]?\${ASTERFI_OUTCID}:${cid || '${CALLERID(num)}'})})`);
       push(` same => n,Dial(PJSIP/\${NUM}@trunk-${t.id},120)`);
       push(' same => n,GotoIf($["${DIALSTATUS}"="ANSWER"|"${DIALSTATUS}"="BUSY"]?done)');
     }

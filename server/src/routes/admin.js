@@ -757,7 +757,7 @@ export default async function adminRoutes(app, { ami }) {
   });
 
   function cleanRoute(b) {
-    const f = pick(b, ['name', 'priority', 'patterns', 'trunk_ids', 'strip', 'prepend']);
+    const f = pick(b, ['name', 'priority', 'patterns', 'trunk_ids', 'strip', 'prepend', 'caller_id', 'cid_override']);
     if ('patterns' in f) {
       f.patterns = (f.patterns || []).map((p) => String(p).trim()).filter(Boolean);
       for (const p of f.patterns) if (!/^(_[0-9XZN\[\]\-.!*#+]+|[0-9*#+]+)$/.test(p)) throw bad(`"${p}" is not a valid dial pattern.`);
@@ -766,6 +766,9 @@ export default async function adminRoutes(app, { ami }) {
     if ('strip' in f) f.strip = Math.max(0, Number(f.strip) || 0);
     if ('prepend' in f) f.prepend = String(f.prepend || '').replace(/[^0-9]/g, '');
     if ('priority' in f) f.priority = Number(f.priority) || 10;
+    if ('caller_id' in f) f.caller_id = String(f.caller_id || '').replace(/[^0-9]/g, '');
+    if ('cid_override' in f) f.cid_override = !!f.cid_override;
+    if (f.cid_override && 'caller_id' in f && !f.caller_id) throw bad('Enter the caller ID this route should use.');
     return f;
   }
   app.get('/api/routes', async () => q('SELECT * FROM outbound_routes ORDER BY priority, id'));
