@@ -135,7 +135,11 @@ export function renderTrunks(trunks, resolved = {}) {
     // Default the From domain to the provider's host; otherwise Asterisk uses our private IP,
     // which carriers then use as the auth realm and reject (403).
     L.push(`from_domain=${confVal(t.from_domain || t.host)}`);
-    if (t.from_user || t.username) L.push(`from_user=${confVal(t.from_user || t.username)}`);
+    // Leave the From user to Asterisk unless one is set: it then carries each call's caller ID, which carriers
+    // such as DIDforSale use (they ignore Remote-Party-ID, and the account name there made every call show the
+    // account's default number). P-Asserted-Identity carries it too, for carriers that read that instead.
+    if (t.from_user) L.push(`from_user=${confVal(t.from_user)}`);
+    L.push('send_pai=yes');
     L.push(...extra('endpoint'), '');
     // If a hostname won't resolve when Asterisk loads (DNS down during a restart), Asterisk drops the whole
     // identify and every inbound call is rejected. So match by IP, including each hostname's addresses as of

@@ -373,7 +373,7 @@ function TrunkDrawer({ trunk, onClose, onSaved, onRetry }) {
         <Field label="Auth username" hint="If different from username."><input type="text" value={f.auth_username} onChange={set('auth_username')} /></Field>
         <Field label="From domain" hint="Defaults to the server address."><input type="text" value={f.from_domain} onChange={set('from_domain')} placeholder={f.host} /></Field>
       </div>
-      <Field label="From user"><input type="text" value={f.from_user} onChange={set('from_user')} /></Field>
+      <Field label="From user" hint="Leave blank so each call's caller ID is sent. Fill it in only if your carrier requires a fixed value, such as the account name; the carrier may then show its default number on every call."><input type="text" value={f.from_user} onChange={set('from_user')} /></Field>
       <Field label="Extra inbound IPs" hint="Comma-separated addresses or CIDRs your provider sends calls from."><input type="text" value={f.match_ips} onChange={set('match_ips')} /></Field>
       <Toggle title="Enabled" checked={f.enabled} onChange={set('enabled')} />
       <div className="section-title">Custom fields</div>
