@@ -447,7 +447,7 @@ function RouteDrawer({ route, trunks, onClose, onSaved }) {
         <Field label="Name"><input type="text" value={f.name} onChange={set('name')} /></Field>
         <Field label="Priority" hint="Lower runs first."><input type="number" value={f.priority} onChange={set('priority')} style={{ maxWidth: 100 }} /></Field>
       </div>
-      <Field label="Dial patterns" hint="One per line. X = any digit, N = 2-9, Z = 1-9, . = one or more. Example: _NXXNXXXXXX for 10-digit numbers.">
+      <Field label="Dial patterns" hint="One per line. X = any digit, N = 2-9, Z = 1-9, . = one or more. Example: NXXNXXXXXX for 10-digit numbers (the leading _ is added for you).">
         <textarea className="mono" rows={6} value={f.patternsText} onChange={set('patternsText')} />
       </Field>
       <Field label="Trunks" hint="Tried in the order you select them.">
@@ -464,7 +464,7 @@ function RouteDrawer({ route, trunks, onClose, onSaved }) {
       </Field>
       {f.caller_id.replace(/\D/g, '') && <Toggle title="Use it for every call on this route" checked={f.cid_override} onChange={set('cid_override')}
         description={f.cid_override ? 'Even users with their own caller ID send this number. Use this for dial prefixes, e.g. 9 for the main line and 8 for the service line.' : "Only for users who don't have their own caller ID."} />}
-      <div className="muted small" style={{ marginTop: 4 }}>To use a dial prefix, add patterns that start with it (for example <span className="mono">_9NXXNXXXXXX</span> and <span className="mono">_91NXXNXXXXXX</span>), set <b>Remove leading digits</b> to 1 so the prefix isn't sent to the carrier, and set the caller ID above.</div>
+      <div className="muted small" style={{ marginTop: 4 }}>To use a dial prefix, add patterns that start with it (for example <span className="mono">9NXXNXXXXXX</span>, <span className="mono">91NXXNXXXXXX</span> and <span className="mono">9911</span>), set <b>Remove leading digits</b> to 1 so the prefix isn't sent to the carrier, and set the caller ID above.</div>
       {confirm && <Confirm title="Delete route?" message="Calls matching these patterns won't go out." onConfirm={async () => { await api.del(`/api/routes/${route.id}`); onSaved(); }} onCancel={() => setConfirm(false)} />}
     </Drawer>
   );

@@ -759,7 +759,9 @@ export default async function adminRoutes(app, { ami }) {
   function cleanRoute(b) {
     const f = pick(b, ['name', 'priority', 'patterns', 'trunk_ids', 'strip', 'prepend', 'caller_id', 'cid_override']);
     if ('patterns' in f) {
-      f.patterns = (f.patterns || []).map((p) => String(p).trim()).filter(Boolean);
+      // Asterisk needs a leading "_" on anything with pattern letters (FreePBX adds it for you), so add it here too.
+      f.patterns = (f.patterns || []).map((p) => String(p).trim().toUpperCase()).filter(Boolean)
+        .map((p) => (!p.startsWith('_') && /[XZN.!\[]/.test(p) ? `_${p}` : p));
       for (const p of f.patterns) if (!/^(_[0-9XZN\[\]\-.!*#+]+|[0-9*#+]+)$/.test(p)) throw bad(`"${p}" is not a valid dial pattern.`);
     }
     if ('trunk_ids' in f) f.trunk_ids = (f.trunk_ids || []).map(Number).filter(Boolean);
