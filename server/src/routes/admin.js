@@ -229,7 +229,8 @@ export default async function adminRoutes(app, { ami }) {
     const number = String(req.body?.number ?? '').replace(/[^0-9*#+]/g, '');
     if (req.body?.on && !number) throw bad('Enter the number to forward your calls to.');
     if (number === req.user.extension) throw bad("You can't forward calls to your own extension.");
-    const r = await setForward(ami, req.user.extension, { number, on: !!req.body?.on });
+    const groups = req.body?.groups === undefined ? undefined : !!req.body.groups;
+    const r = await setForward(ami, req.user.extension, { number, on: !!req.body?.on, groups });
     pushUserState(req.user.extension).catch(() => {});
     return r;
   });
@@ -878,7 +879,19 @@ export default async function adminRoutes(app, { ami }) {
     if (status) { p.push(status === 'missed' ? ['missed', 'abandoned', 'busy'] : [status]); where.push(`status = ANY($${p.length})`); }
     if (direction) { p.push(direction); where.push(`direction = $${p.length}`); }
     if (extension) { p.push(extension); where.push(`(answered_by=$${p.length} OR from_num=$${p.length} OR to_num=$${p.length} OR $${p.length} = ANY(missed_exts))`); }
-    if (search) { p.push(`%${search}%`); where.push(`(from_num ILIKE $${p.length} OR from_name ILIKE $${p.length} OR to_num ILIKE $${p.length})`); }
+    if (search) {
+      const s = String(search).trim();
+      p.push(`%${s}%`);
+      const or = [`from_num ILIKE $${p.length}`, `from_name ILIKE $${p.length}`, `to_num ILIKE $${p.length}`];
+      // A number pasted as "(860) 868-5411" or "+1 860-868-5411" matches on its digits, whatever format was stored.
+      let d = s.replace(/\D/g, '');
+      if (d.length === 11 && d.startsWith('1')) d = d.slice(1);
+      if (d.length >= 3 && /^[\d\s()+.\-]+$/.test(s)) {
+        p.push(`%${d}%`);
+        or.push(`regexp_replace(from_num, '\\D', '', 'g') LIKE $${p.length}`, `regexp_replace(to_num, '\\D', '', 'g') LIKE $${p.length}`);
+      }
+      where.push(`(${or.join(' OR ')})`);
+    }
     const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const [rows, total] = await Promise.all([
       q(`SELECT * FROM calls ${w} ORDER BY started_at DESC LIMIT ${Math.min(500, Number(limit) || 50)} OFFSET ${Number(offset) || 0}`, p),
