@@ -96,19 +96,21 @@ function Appearance() {
 
 // Call forwarding; the same setting as Redirect on a UniFi phone's status menu.
 function Forwarding({ initial }) {
-  const [fw, setFw] = useState({ number: initial?.number || '', on: !!initial?.on });
+  const [fw, setFw] = useState({ number: initial?.number || '', on: !!initial?.on, groups: !!initial?.groups });
   const toast = useToast();
   const save = async (next) => {
     try {
       const r = await api.post('/api/my/forward', next);
-      setFw({ number: r.number || next.number, on: r.on });
+      setFw({ number: r.number || next.number, on: r.on, groups: !!r.groups });
       toast(r.on ? `Calls forward to ${r.number}` : 'Call forwarding off');
     } catch (e) { toast(e.message, 'error'); }
   };
   return (
     <>
-      <Toggle title="Forward my calls" description="Calls to your extension ring this number instead. Ring group calls still ring your phones." checked={fw.on}
+      <Toggle title="Forward my calls" description="Calls to your extension ring this number instead." checked={fw.on}
         onChange={(on) => save({ ...fw, on })} />
+      {fw.on && <Toggle title="Include group calls" checked={fw.groups} onChange={(groups) => save({ ...fw, groups })}
+        description={fw.groups ? 'Ring group and queue calls ring this number too. You press 1 to take an outside-number call.' : "Ring group and queue calls skip you and ring the rest of the group."} />}
       <Field label="Forward to" hint="An outside number or another extension.">
         <div style={{ display: 'flex', gap: 8 }}>
           <input type="tel" value={fw.number} placeholder="(860) 555-0100" onChange={(e) => setFw({ ...fw, number: e.target.value })} />

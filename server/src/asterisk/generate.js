@@ -265,12 +265,13 @@ function renderDialplan({ users, groups, flows, numbers, routes, trunks, general
     ' same => n,GotoIf($["${DIALSTATUS}"="ANSWER"]?answered)',
     ' same => n,Return()',
     '',
-    // One member's leg of a group or queue call. A member with forwarding on rings their forward number instead.
+    // One member's leg of a group or queue call. A member with forwarding on rings their forward number if they
+    // forward group calls too (CFGRP); otherwise they're skipped and the group rings everyone else.
     '[asterfi-ring]',
     'exten => _X!,1,GotoIf($["${CALLERID(num)}"="${EXTEN}"]?skip)',
     ' same => n,GotoIf($["${DB(DND/${EXTEN})}"="1"]?skip)',
     ' same => n,Set(FWD=${FILTER(0-9*#+,${DB(CF/${EXTEN})})})',
-    ' same => n,GotoIf($["${FWD}"!="" & "${FWD}"!="${EXTEN}" & "${ASTERFI_FWDFROM}"=""]?fwd)',
+    ' same => n,GotoIf($["${FWD}"!="" & "${FWD}"!="${EXTEN}" & "${ASTERFI_FWDFROM}"=""]?fwdgrp)',
     ' same => n,Set(DSTR=${PJSIP_DIAL_CONTACTS(${EXTEN})})',
     ' same => n,Set(WSTR=${PJSIP_DIAL_CONTACTS(webrtc-${EXTEN})})',
     ' same => n,Set(DSTR=${DSTR}${IF($["${DSTR}"!="" & "${WSTR}"!=""]?&)}${WSTR})',
@@ -278,6 +279,7 @@ function renderDialplan({ users, groups, flows, numbers, routes, trunks, general
     ' same => n,Dial(${DSTR},,iU(asterfi-whisper))',
     ' same => n,Hangup()',
     ' same => n(skip),Congestion()',
+    ' same => n(fwdgrp),GotoIf($["${DB(CFGRP/${EXTEN})}"="1"]?fwd:skip)',
     // The forwarded member must press 1 to take it, so their cell's voicemail can't answer for the group
     // (the group then goes on to the next member).
     ' same => n(fwd),Set(__ASTERFI_FWDFROM=${EXTEN})',
