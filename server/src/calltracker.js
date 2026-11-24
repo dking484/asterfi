@@ -107,7 +107,9 @@ const known = (v) => (v && v !== '<unknown>' ? v : null);
 // Caller ID is sometimes set after the channel is created.
 function onNewCallerid(e) {
   const c = calls.get(e.Linkedid);
-  if (!c || e.Uniqueid !== c.id || c.clickToCall) return; // a click-to-call stays "from" the user who placed it
+  // A click-to-call stays "from" the user who placed it, and so does an outbound call: the dialplan sets the
+  // outgoing caller ID (such as the company number) for the carrier, but the call is still the user's.
+  if (!c || e.Uniqueid !== c.id || c.clickToCall || (c.direction === 'outbound' && c.fromExt)) return;
   c.fromNum = known(e.CallerIDNum) || c.fromNum;
   c.fromName = known(e.CallerIDName) || c.fromName;
 }
@@ -137,6 +139,7 @@ function onUserEvent(e) {
       if (c.forwardedTo) break;
       c.direction = 'outbound';
       c.toNum = e.Number;
+      if (c.fromExt) c.fromNum = c.fromExt;
       publish('call.outbound', summary(c));
       break;
     case 'AsterFiClick': {
