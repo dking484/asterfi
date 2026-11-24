@@ -24,14 +24,15 @@ export default function Account() {
     if (pw.password !== pw.confirm) return toast("New passwords don't match.", 'error');
     try { await api.post('/api/my/password', pw); setPw({ current: '', password: '', confirm: '' }); toast('Password changed'); } catch (e) { toast(e.message, 'error'); }
   };
-  const dnd = async (v) => { setF({ ...f, dnd: v }); await api.post('/api/my/dnd', { dnd: v }); toast(v ? 'Do not disturb on' : 'Do not disturb off'); };
+  // One status at a time, as on the phone: DND turns forwarding off, and forwarding turns DND off.
+  const dnd = async (v) => { setF({ ...f, dnd: v, forward: v ? { ...f.forward, on: false } : f.forward }); await api.post('/api/my/dnd', { dnd: v }); toast(v ? 'Do not disturb on' : 'Do not disturb off'); };
 
   return (
     <div className="grid-2" style={{ alignItems: 'start' }}>
       <div>
         <div className="card"><div className="card-head"><h2>{f.first_name} {f.last_name}</h2><span className="badge">Ext. {f.extension}</span></div><div className="card-body">
           <Toggle title="Do not disturb" description="Your phones won't ring. You can also dial *76." checked={f.dnd} onChange={dnd} />
-          <Forwarding initial={f.forward} />
+          <Forwarding key={f.forward?.on ? 'on' : 'off'} initial={f.forward} onSaved={(r) => setF((x) => ({ ...x, forward: r, dnd: r.on ? false : x.dnd }))} />
           <Field label="Email" hint="Used to sign in and for notifications."><input type="email" value={f.email} onChange={set('email')} /></Field>
           <div className="row">
             <Field label="Voicemail PIN" hint="Dial *97 to check messages."><input type="text" inputMode="numeric" value={f.vm_pin} onChange={set('vm_pin')} /></Field>
@@ -95,13 +96,14 @@ function Appearance() {
 }
 
 // Call forwarding; the same setting as Redirect on a UniFi phone's status menu.
-function Forwarding({ initial }) {
+function Forwarding({ initial, onSaved }) {
   const [fw, setFw] = useState({ number: initial?.number || '', on: !!initial?.on, groups: !!initial?.groups });
   const toast = useToast();
   const save = async (next) => {
     try {
       const r = await api.post('/api/my/forward', next);
       setFw({ number: r.number || next.number, on: r.on, groups: !!r.groups });
+      onSaved?.(r);
       toast(r.on ? `Calls forward to ${r.number}` : 'Call forwarding off');
     } catch (e) { toast(e.message, 'error'); }
   };

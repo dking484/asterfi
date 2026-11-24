@@ -231,6 +231,7 @@ export default async function adminRoutes(app, { ami }) {
     if (number === req.user.extension) throw bad("You can't forward calls to your own extension.");
     const groups = req.body?.groups === undefined ? undefined : !!req.body.groups;
     const r = await setForward(ami, req.user.extension, { number, on: !!req.body?.on, groups });
+    if (r.on) await ami.action({ Action: 'DBDel', Family: 'DND', Key: req.user.extension }).catch(() => null);
     pushUserState(req.user.extension).catch(() => {});
     return r;
   });
@@ -244,7 +245,10 @@ export default async function adminRoutes(app, { ami }) {
     };
   });
 
+  // A user has one status, as on a UniFi phone's status menu: Do Not Disturb turns forwarding off (the forward
+  // number is kept), and turning forwarding on clears Do Not Disturb. Otherwise forwarding would win and DND look stuck.
   async function setDnd(ext, on) {
+    if (on) await setForward(ami, ext, { on: false });
     await ami.action({ Action: on ? 'DBPut' : 'DBDel', Family: 'DND', Key: ext, Val: on ? '1' : undefined });
     pushUserState(ext).catch(() => {});
     return { ok: true, dnd: on };
